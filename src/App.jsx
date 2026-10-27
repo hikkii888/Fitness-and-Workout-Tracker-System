@@ -4,7 +4,6 @@ import FitnessGoalSelection from './components/FitnessGoalSelection';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('home');
-  const [selectedGoal, setSelectedGoal] = useState(null);
 
   const handleContinueToGoals = () => {
     setCurrentScreen('goals');
@@ -14,10 +13,10 @@ function App() {
     setCurrentScreen('home');
   };
 
-  const handleGoalComplete = (goal) => {
-    setSelectedGoal(goal);
-    alert(`You selected: ${goal.title}`);
+  const handleGoalComplete = (goalData) => {
+    console.log('Goal selected:', goalData);
     // Here you would typically navigate to the next screen
+    alert(`Plan built!\nGoal: ${goalData.goal}\nDays: ${goalData.days}\nExperience: ${goalData.experience}`);
   };
 
   return (
