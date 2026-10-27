@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import ActiveWorkout from './components/ActiveWorkout';
 import FitnessGoalSelection from './components/FitnessGoalSelection';
 import HomeDashboard from './components/HomeDashboard';
 import Icon from './components/Icon';
+import WorkoutFeedback from './components/WorkoutFeedback';
 
 const workoutRecords = [
   { id: 1, date: '2026-11-02', name: 'Full Body Foundations', exercises: ['Goblet squat', 'Incline push-up', 'Dumbbell row'], duration: 32, status: 'Completed' },
@@ -263,7 +265,7 @@ function App() {
 
         <nav className="side-nav" aria-label="Main navigation">
           {navigation.map((item) => {
-            const isAvailable = ['home', 'goals', 'progress', 'history'].includes(item.id);
+            const isAvailable = ['home', 'goals', 'workout', 'feedback', 'progress', 'history'].includes(item.id);
             return (
               <button
                 className={`side-nav-item ${currentScreen === item.id ? 'is-active' : ''}`}
@@ -296,7 +298,13 @@ function App() {
         <header className="topbar">
           <div>
             <p className="eyebrow">BEGINNER PROGRAM</p>
-            <h1>{({ goals: 'Choose Your Fitness Goal', progress: 'Progress & Analytics', history: 'Workout History' })[currentScreen] || 'Home Dashboard'}</h1>
+            <h1>{({
+              goals: 'Choose Your Fitness Goal',
+              workout: 'Active Workout',
+              feedback: 'Workout Feedback',
+              progress: 'Progress & Analytics',
+              history: 'Workout History',
+            })[currentScreen] || 'Home Dashboard'}</h1>
           </div>
           <div className="topbar-actions">
             <button className="icon-button" type="button" aria-label="Search">
@@ -322,8 +330,21 @@ function App() {
             <ProgressAnalytics onOpenGoals={() => setCurrentScreen('goals')} onOpenHistory={() => setCurrentScreen('history')} />
           ) : currentScreen === 'history' ? (
             <WorkoutHistory />
+          ) : currentScreen === 'workout' ? (
+            <ActiveWorkout onFinish={() => setCurrentScreen('feedback')} />
+          ) : currentScreen === 'feedback' ? (
+            <WorkoutFeedback onSaved={({ difficulty, feltPain }) => {
+              const difficultyLabels = {
+                'too-easy': 'too easy',
+                'just-right': 'just right',
+                'too-hard': 'too hard',
+                unfinished: 'unfinished',
+              };
+              showNotice(`Feedback saved: workout felt ${difficultyLabels[difficulty]}${feltPain ? ', pain or discomfort reported' : ''}.`);
+              setCurrentScreen('home');
+            }} />
           ) : (
-            <HomeDashboard onContinue={() => setCurrentScreen('goals')} />
+            <HomeDashboard onContinue={() => setCurrentScreen('workout')} />
           )}
         </main>
       </div>
