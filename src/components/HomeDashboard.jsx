@@ -10,7 +10,7 @@ const weeklyActivity = [
   { day: 'S', height: 10 },
 ];
 
-function HomeDashboard({ onContinue }) {
+function HomeDashboard({ onContinue, onOpenPlan = onContinue, onOpenProgress = onContinue }) {
   return (
     <div className="dashboard">
       <section className="welcome-card">
@@ -35,7 +35,7 @@ function HomeDashboard({ onContinue }) {
             <p className="eyebrow">TODAY</p>
             <h2 id="daily-plan-title">Your daily plan</h2>
           </div>
-          <button className="text-link" type="button" onClick={onContinue}>View full plan <Icon name="arrow" /></button>
+          <button className="text-link" type="button" onClick={onOpenPlan}>View full plan <Icon name="arrow" /></button>
         </div>
 
         <div className="stats-grid">
@@ -91,7 +91,7 @@ function HomeDashboard({ onContinue }) {
           </div>
           <p className="goal-caption">You’re more than halfway to your 8-week strength goal.</p>
           <div className="progress-track goal-track"><span style={{ width: '68%' }} /></div>
-          <button className="text-link" type="button" onClick={onContinue}>See my progress <Icon name="arrow" /></button>
+          <button className="text-link" type="button" onClick={onOpenProgress}>See my progress <Icon name="arrow" /></button>
         </article>
       </section>
     </div>
