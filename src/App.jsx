@@ -5,6 +5,7 @@ import FitnessGoalSelection from './components/FitnessGoalSelection';
 import ExerciseLibrary from './components/ExerciseLibrary';
 import HomeDashboard from './components/HomeDashboard';
 import Icon from './components/Icon';
+import WorkoutSchedule from './components/WorkoutSchedule';
 import WorkoutPlan from './components/WorkoutPlan';
 import WorkoutFeedback from './components/WorkoutFeedback';
 
@@ -36,120 +37,80 @@ function formatWorkoutDate(date) {
   });
 }
 
-function TrendChart({ title, unit, values, labels, color }) {
-  const points = values.map((value, index) => {
-    const x = 14 + (index * 272) / (values.length - 1);
-    const y = 96 - value * 0.72;
-    return `${x},${y}`;
-  }).join(' ');
+const progressMetrics = {
+  Workouts: {
+    values: [27, 44, 39, 53, 47, 69, 61, 83],
+    path: 'M12 105 C52 100 59 78 96 81 S140 91 175 78 S217 68 245 75 S288 54 323 63 S367 72 405 54 S455 29 493 35 S540 52 576 43 S636 21 688 12',
+  },
+  'Active minutes': {
+    values: [22, 38, 35, 54, 46, 65, 73, 89],
+    path: 'M12 108 C47 104 70 88 96 90 S143 78 175 79 S218 93 245 77 S284 58 323 66 S366 43 405 51 S451 61 493 42 S540 31 576 28 S640 16 688 8',
+  },
+  'Total reps': {
+    values: [18, 35, 31, 48, 43, 62, 70, 91],
+    path: 'M12 110 C50 106 64 92 96 94 S140 76 175 83 S219 84 245 72 S284 55 323 61 S367 38 405 43 S455 54 493 36 S539 25 576 25 S634 8 688 6',
+  },
+};
+
+function ProgressAnalytics() {
+  const [metric, setMetric] = useState('Workouts');
+  const activeMetric = progressMetrics[metric];
 
   return (
-    <article className="trend-chart panel">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">TRAINING TREND</p>
-          <h3>{title}</h3>
-        </div>
-        <span className="chart-unit">{unit}</span>
+    <section className="progress-screen" aria-label="Progress and workout analytics">
+      <div className="progress-metric-grid">
+        <article className="progress-metric-card">
+          <span className="progress-metric-icon"><Icon name="calendar" /></span>
+          <strong>12</strong><b>Workouts</b><small>+3 this month</small>
+        </article>
+        <article className="progress-metric-card">
+          <span className="progress-metric-icon"><Icon name="clock" /></span>
+          <strong>284</strong><b>Active min</b><small>+18%</small>
+        </article>
+        <article className="progress-metric-card">
+          <span className="progress-metric-icon"><Icon name="bolt" /></span>
+          <strong>4,820</strong><b>Total reps</b><small>+520</small>
+        </article>
+        <article className="progress-metric-card">
+          <span className="progress-metric-icon"><Icon name="flame" /></span>
+          <strong>7</strong><b>Week streak</b><small>Personal best</small>
+        </article>
       </div>
-      <svg className="trend-plot" viewBox="0 0 300 116" role="img" aria-label={`${title} chart in ${unit}`}>
-        {[24, 48, 72, 96].map((y) => <line key={y} x1="10" x2="290" y1={y} y2={y} className="chart-gridline" />)}
-        <polyline points={points} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        {values.map((value, index) => {
-          const x = 14 + (index * 272) / (values.length - 1);
-          const y = 96 - value * 0.72;
-          return <circle key={`${labels[index]}-${value}`} cx={x} cy={y} r="4" fill={color} />;
-        })}
-      </svg>
-      <div className="chart-axis" aria-label="Chart labels">
-        {labels.map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}
-      </div>
-      <p className="chart-legend"><span style={{ backgroundColor: color }} /> {title} ({unit})</p>
-    </article>
-  );
-}
 
-function ProgressAnalytics({ onOpenGoals, onOpenHistory }) {
-  const [period, setPeriod] = useState('weekly');
-  const daily = period === 'daily';
-  const labels = daily ? ['6a', '9a', '12p', '3p', '6p'] : ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+      <div className="progress-detail-grid">
+        <article className="panel consistency-panel">
+          <div className="panel-heading">
+            <div><p className="eyebrow">LAST 8 WEEKS</p><h3>Workout consistency</h3></div>
+            <label className="metric-select-label">
+              <span className="sr-only">Choose progress metric</span>
+              <select aria-label="Choose progress metric" onChange={(event) => setMetric(event.target.value)} value={metric}>
+                {Object.keys(progressMetrics).map((option) => <option key={option}>{option}</option>)}
+              </select>
+            </label>
+          </div>
+          <svg className="consistency-chart" viewBox="0 0 700 145" preserveAspectRatio="none" role="img" aria-label={`${metric} trend for the last eight weeks`}>
+            <path d={`${activeMetric.path} L688 130 L12 130 Z`} className="consistency-area" />
+            <path d={activeMetric.path} className="consistency-line" />
+          </svg>
+          <div className="consistency-axis">{activeMetric.values.map((_, index) => <span key={index}>W{index + 1}</span>)}</div>
+        </article>
 
-  return (
-    <section className="screen-stack analytics-screen" aria-label="Progress and workout analytics">
-      <div className="screen-intro">
-        <div>
-          <p className="eyebrow">YOUR TRAINING, AT A GLANCE</p>
-          <h2>Progress that adds up.</h2>
-          <p>Small wins make a stronger routine.</p>
-        </div>
-        <div className="period-tabs" role="tablist" aria-label="Analytics period">
-          {['daily', 'weekly'].map((option) => (
-            <button
-              aria-selected={period === option}
-              className={period === option ? 'is-selected' : ''}
-              key={option}
-              onClick={() => setPeriod(option)}
-              role="tab"
-              type="button"
-            >
-              {option === 'daily' ? 'Daily' : 'Weekly'}
-            </button>
+        <article className="panel muscle-panel">
+          <p className="eyebrow">MUSCLE GROUPS</p>
+          <h3>Training balance</h3>
+          {[
+            { name: 'Lower body', value: 78 },
+            { name: 'Core', value: 64 },
+            { name: 'Upper body', value: 48 },
+            { name: 'Mobility', value: 36 },
+          ].map((group) => (
+            <div className="muscle-progress" key={group.name}>
+              <div><span>{group.name}</span><strong>{group.value}%</strong></div>
+              <div className="progress-track"><span style={{ width: `${group.value}%` }} /></div>
+            </div>
           ))}
-        </div>
-      </div>
-
-      <div className="analytics-stats">
-        <article className="analytics-stat">
-          <span className="stat-icon stat-icon-green"><Icon name="check" /></span>
-          <div><p>WORKOUTS</p><strong>{daily ? '1' : '4'}</strong><small>{daily ? 'completed today' : 'completed this week'}</small></div>
-        </article>
-        <article className="analytics-stat">
-          <span className="stat-icon stat-icon-coral"><Icon name="flame" /></span>
-          <div><p>EXERCISE MINUTES</p><strong>{daily ? '32' : '168'} <small>min</small></strong><small>{daily ? 'active today' : 'this week'}</small></div>
-        </article>
-        <article className="analytics-stat consistency-stat">
-          <div className="consistency-copy"><p>WORKOUT CONSISTENCY</p><strong>{daily ? '100%' : '86%'} <small>completion rate</small></strong><small>{daily ? '1 of 1 planned days' : '6 of 7 planned days'}</small></div>
-          <div className="progress-track"><span style={{ width: daily ? '100%' : '86%' }} /></div>
         </article>
       </div>
-
-      <div className="analytics-charts">
-        <TrendChart color="#28765e" labels={labels} title="Sets" unit="sets" values={daily ? [2, 4, 3, 5, 4] : [3, 5, 4, 7, 5, 8, 6]} />
-        <TrendChart color="#d16d50" labels={labels} title="Repetitions" unit="reps" values={daily ? [3, 5, 4, 7, 6] : [4, 6, 5, 8, 7, 9, 8]} />
-        <TrendChart color="#597c9b" labels={labels} title="Weights" unit="kg" values={daily ? [2, 3, 3, 5, 4] : [3, 4, 4, 6, 5, 7, 6]} />
-      </div>
-
-      <article className="comparison-panel">
-        <div>
-          <p className="eyebrow">WEEKLY COMPARISON</p>
-          <h3>Stronger than last week</h3>
-          <p>You've completed one more workout this week.</p>
-        </div>
-        <div className="comparison-value"><strong>+18%</strong><span>workout minutes</span></div>
-        <div className="comparison-bars" aria-label="This week: 168 minutes. Previous week: 142 minutes.">
-          <span><i style={{ height: '82%' }} /><small>This week</small></span>
-          <span><i style={{ height: '68%' }} /><small>Last week</small></span>
-        </div>
-      </article>
-
-      <section className="goal-progress-panel">
-        <div className="goal-progress-ring" aria-label="68 percent of strength goal complete"><span>68<small>%</small></span></div>
-        <div className="goal-progress-copy"><p className="eyebrow">8-WEEK STRENGTH GOAL</p><h3>You're building momentum</h3><p>5 of 8 weeks complete. Keep your routine going.</p></div>
-        <button className="goal-progress-link" type="button" onClick={onOpenGoals} aria-label="Open goal progress in Fitness Goals">
-          <Icon name="arrow" />
-        </button>
-      </section>
-
-      <section className="completed-section">
-        <div className="section-heading"><h2>Completed workouts</h2><button className="text-link" type="button" onClick={onOpenHistory}>View history <Icon name="arrow" /></button></div>
-        {workoutRecords.slice(0, 2).map((record) => (
-          <article className="completed-row" key={record.id}>
-            <span className="completed-check"><Icon name="check" /></span>
-            <div className="completed-copy"><strong>{record.name}</strong><span>{formatWorkoutDate(record.date)} · {record.duration} min</span></div>
-            <span className="status-label">Done</span>
-          </article>
-        ))}
-      </section>
     </section>
   );
 }
@@ -285,7 +246,7 @@ function App() {
 
         <nav className="side-nav" aria-label="Main navigation">
           {navigation.map((item) => {
-            const isAvailable = ['home', 'goals', 'plan', 'library', 'workout', 'feedback', 'progress', 'achievements', 'history'].includes(item.id);
+            const isAvailable = ['home', 'goals', 'plan', 'library', 'workout', 'feedback', 'progress', 'schedule', 'achievements', 'history'].includes(item.id);
             return (
               <button
                 className={`side-nav-item ${currentScreen === item.id ? 'is-active' : ''}`}
@@ -325,6 +286,7 @@ function App() {
               workout: 'Active Workout',
               feedback: 'Workout Feedback',
               progress: 'Progress & Analytics',
+              schedule: 'Workout Schedule',
               achievements: 'Achievements',
               history: 'Workout History',
             })[currentScreen] || 'Home Dashboard'}</h1>
@@ -350,7 +312,9 @@ function App() {
               onComplete={handleGoalComplete}
             />
           ) : currentScreen === 'progress' ? (
-            <ProgressAnalytics onOpenGoals={() => setCurrentScreen('goals')} onOpenHistory={() => setCurrentScreen('history')} />
+            <ProgressAnalytics />
+          ) : currentScreen === 'schedule' ? (
+            <WorkoutSchedule onViewWorkout={() => setCurrentScreen('workout')} />
           ) : currentScreen === 'history' ? (
             <WorkoutHistory />
           ) : currentScreen === 'achievements' ? (
