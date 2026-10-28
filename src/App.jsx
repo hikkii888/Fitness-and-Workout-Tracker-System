@@ -9,10 +9,10 @@ import WorkoutPlan from './components/WorkoutPlan';
 import WorkoutFeedback from './components/WorkoutFeedback';
 
 const workoutRecords = [
-  { id: 1, date: '2026-11-02', name: 'Full Body Foundations', exercises: ['Goblet squat', 'Incline push-up', 'Dumbbell row'], duration: 32, status: 'Completed' },
-  { id: 2, date: '2026-10-30', name: 'Lower Body Strength', exercises: ['Bodyweight lunge', 'Glute bridge', 'Calf raise'], duration: 28, status: 'Completed' },
-  { id: 3, date: '2026-10-27', name: 'Upper Body Basics', exercises: ['Wall push-up', 'Dumbbell row', 'Shoulder press'], duration: 35, status: 'Completed' },
-  { id: 4, date: '2026-10-25', name: 'Quick Core Reset', exercises: ['Dead bug', 'Bird dog', 'Knee plank'], duration: 18, status: 'Completed' },
+  { id: 1, date: '2026-06-14', name: 'Core & Stability', exercises: ['Dead bug', 'Bird dog', 'Knee plank'], duration: 24, status: 'Completed' },
+  { id: 2, date: '2026-06-12', name: 'Full Body Foundation', exercises: ['Goblet squat', 'Incline push-up', 'Dumbbell row'], duration: 28, status: 'Completed' },
+  { id: 3, date: '2026-06-09', name: 'Lower Body Basics', exercises: ['Bodyweight squat', 'Glute bridge', 'Calf raise'], duration: 31, status: 'Completed' },
+  { id: 4, date: '2026-06-07', name: 'Upper Body Starter', exercises: ['Wall push-up', 'Dumbbell row', 'Shoulder press'], duration: 22, status: 'Modified' },
 ];
 
 const navigation = [
@@ -157,14 +157,18 @@ function ProgressAnalytics({ onOpenGoals, onOpenHistory }) {
 function WorkoutHistory() {
   const [records, setRecords] = useState(workoutRecords);
   const [search, setSearch] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
+  const [monthFilter, setMonthFilter] = useState('2026-06');
   const [dialog, setDialog] = useState(null);
   const [draftName, setDraftName] = useState('');
   const [draftDuration, setDraftDuration] = useState('');
   const visibleRecords = records.filter((record) => {
     const matchesSearch = `${record.name} ${record.exercises.join(' ')}`.toLowerCase().includes(search.toLowerCase());
-    return matchesSearch && (!dateFilter || record.date === dateFilter);
+    return matchesSearch && (!monthFilter || record.date.startsWith(monthFilter));
   });
+  const monthDate = monthFilter ? new Date(`${monthFilter}-01T12:00:00`) : null;
+  const rangeLabel = monthDate
+    ? `${monthDate.toLocaleDateString('en-US', { month: 'short' })} 1 – ${new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+    : 'All dates';
 
   const startEdit = (record) => {
     setDraftName(record.name);
@@ -181,38 +185,51 @@ function WorkoutHistory() {
 
   return (
     <section className="screen-stack history-screen" aria-label="Workout history and record management">
-      <div className="screen-intro history-intro">
-        <div><p className="eyebrow">YOUR SAVED SESSIONS</p><h2>Every session, remembered.</h2><p>Review and manage your workout records.</p></div>
-        <span className="history-count">{records.length} {records.length === 1 ? 'SESSION' : 'SESSIONS'}</span>
-      </div>
-
       <div className="history-filters">
-        <label className="history-search"><Icon name="search" /><input aria-label="Search workout history" onChange={(event) => setSearch(event.target.value)} placeholder="Search workouts or exercises" type="search" value={search} /></label>
-        <label className="history-date"><span>Date</span><input aria-label="Filter by workout date" onChange={(event) => setDateFilter(event.target.value)} type="date" value={dateFilter} /></label>
+        <label className="history-search">
+          <Icon name="search" />
+          <input aria-label="Search workout history" onChange={(event) => setSearch(event.target.value)} placeholder="Search workout history..." type="search" value={search} />
+        </label>
+        <label className="history-date-range">
+          <Icon name="calendar" />
+          <span>{rangeLabel}</span>
+          <input aria-label="Filter workout history by month" onChange={(event) => setMonthFilter(event.target.value)} type="month" value={monthFilter} />
+        </label>
       </div>
 
       {visibleRecords.length > 0 ? (
-        <div className="history-list">
-          {visibleRecords.map((record) => (
-            <article className="history-record" key={record.id}>
-              <div className="record-topline"><span className="record-date">{formatWorkoutDate(record.date)}</span><span className="status-label"><i />{record.status}</span></div>
-              <h3>{record.name}</h3>
-              <p className="record-exercises">{record.exercises.join(' · ')}</p>
-              <div className="record-meta"><span><Icon name="clock" />{record.duration} min</span><span><Icon name="library" />{record.exercises.length} exercises</span></div>
-              <div className="record-actions">
-                <button className="primary-button record-view" onClick={() => setDialog({ type: 'details', record })} type="button">View workout details <Icon name="arrow" /></button>
-                <button aria-label={`Edit ${record.name}`} className="record-action" onClick={() => startEdit(record)} type="button">Edit record</button>
-                <button aria-label={`Delete ${record.name}`} className="record-action delete-action" onClick={() => setDialog({ type: 'delete', record })} type="button">Delete</button>
-              </div>
-            </article>
-          ))}
+        <div className="history-table-wrap">
+          <table className="history-table">
+            <thead>
+              <tr><th scope="col">DATE</th><th scope="col">WORKOUT</th><th scope="col">DURATION</th><th scope="col">STATUS</th><th scope="col">ACTIONS</th></tr>
+            </thead>
+            <tbody>
+              {visibleRecords.map((record) => (
+                <tr key={record.id}>
+                  <td>{new Date(`${record.date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
+                  <td>
+                    <button className="record-name-button" onClick={() => setDialog({ type: 'details', record })} type="button">{record.name}</button>
+                    <span className="record-program-label">Beginner program</span>
+                  </td>
+                  <td>{record.duration} min</td>
+                  <td><span className={`history-status ${record.status === 'Modified' ? 'is-modified' : ''}`}>{record.status}</span></td>
+                  <td>
+                    <div className="history-table-actions">
+                      <button aria-label={`Edit ${record.name}`} className="table-action edit-action" onClick={() => startEdit(record)} type="button"><Icon name="edit" /></button>
+                      <button aria-label={`Delete ${record.name}`} className="table-action delete-action" onClick={() => setDialog({ type: 'delete', record })} type="button"><Icon name="trash" /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : (
         <div className="history-empty">
           <span className="empty-mark"><Icon name={records.length ? 'search' : 'history'} /></span>
           <h3>{records.length ? 'No matching workouts' : 'Your history starts here'}</h3>
-          <p>{records.length ? 'Try another search or date to find a session.' : 'Completed workouts will appear here, ready whenever you want to look back.'}</p>
-          {(search || dateFilter) && <button className="text-link" onClick={() => { setSearch(''); setDateFilter(''); }} type="button">Clear filters</button>}
+          <p>{records.length ? 'Try another search or month to find a session.' : 'Completed workouts will appear here, ready whenever you want to look back.'}</p>
+          {(search || monthFilter) && <button className="text-link" onClick={() => { setSearch(''); setMonthFilter(''); }} type="button">Clear filters</button>}
         </div>
       )}
 
