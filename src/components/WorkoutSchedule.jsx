@@ -82,7 +82,7 @@ function WorkoutSchedule({ onViewWorkout }) {
       </div>
 
       <article className="scheduled-workout-card">
-        <span className={`scheduled-date-badge ${selectedWorkout.status === 'Recovery' ? 'is-rest' : ''}`}>
+        <span className={`scheduled-date-badge ${selectedWorkout.status === 'Recovery' ? 'is-rest' : ''} ${selectedWorkout.status === 'Scheduled' ? 'is-scheduled' : ''}`}>
           <strong>{shiftDate(weekStart, selectedDay).toLocaleDateString('en-US', { day: 'numeric' })}</strong>
           <small>{selectedWorkout.weekday.slice(0, 3).toUpperCase()}</small>
         </span>

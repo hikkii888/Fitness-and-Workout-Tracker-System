@@ -1964,491 +1964,497 @@
   .screen-stack {
     gap: 13px;
   }
+}
 
-  .progress-screen,
-  .schedule-screen {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-  }
+.progress-screen,
+.schedule-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
 
-  .progress-metric-grid {
-    display: grid;
-    gap: 14px;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+.progress-metric-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.progress-metric-card {
+  background: #fff;
+  border: 1px solid #e3e9e3;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  min-height: 146px;
+  padding: 17px;
+}
+
+.progress-metric-icon {
+  align-items: center;
+  background: #eaf2e9;
+  border-radius: 10px;
+  color: #38745b;
+  display: flex;
+  height: 36px;
+  justify-content: center;
+  margin-bottom: 14px;
+  width: 36px;
+}
+
+.progress-metric-icon svg {
+  height: 18px;
+  width: 18px;
+}
+
+.progress-metric-card strong {
+  color: #1d3d34;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.progress-metric-card b {
+  color: #435b4e;
+  font-size: 11px;
+  margin-top: 5px;
+}
+
+.progress-metric-card small {
+  color: #829087;
+  font-size: 9px;
+  margin-top: 5px;
+}
+
+.progress-detail-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.65fr) minmax(245px, .9fr);
+}
+
+.consistency-panel,
+.muscle-panel {
+  min-width: 0;
+  padding: 20px;
+}
+
+.consistency-panel .panel-heading {
+  align-items: center;
+}
+
+.consistency-panel .panel-heading h3,
+.muscle-panel h3 {
+  color: #294239;
+  font-size: 16px;
+  margin: 0;
+}
+
+.consistency-panel .eyebrow,
+.muscle-panel .eyebrow {
+  font-size: 8px;
+  margin: 0 0 6px;
+}
+
+.metric-select-label select {
+  appearance: none;
+  background: #f5f7f3;
+  border: 1px solid #e1e8e1;
+  border-radius: 8px;
+  color: #52665a;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  min-height: 34px;
+  padding: 0 26px 0 10px;
+}
+
+.metric-select-label {
+  position: relative;
+}
+
+.metric-select-label::after {
+  border-bottom: 1.5px solid #61776a;
+  border-right: 1.5px solid #61776a;
+  content: '';
+  height: 6px;
+  pointer-events: none;
+  position: absolute;
+  right: 11px;
+  top: 11px;
+  transform: rotate(45deg);
+  width: 6px;
+}
+
+.consistency-chart {
+  display: block;
+  height: 150px;
+  margin-top: 20px;
+  overflow: visible;
+  width: 100%;
+}
+
+.consistency-area {
+  fill: #e7f1e8;
+}
+
+.consistency-line {
+  fill: none;
+  stroke: #438565;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.consistency-axis {
+  color: #849188;
+  display: flex;
+  font-size: 9px;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.muscle-panel > .eyebrow {
+  margin-bottom: 7px;
+}
+
+.muscle-progress {
+  margin-top: 21px;
+}
+
+.muscle-progress > div:first-child {
+  align-items: center;
+  color: #53665b;
+  display: flex;
+  font-size: 10px;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.muscle-progress strong {
+  color: #315945;
+  font-size: 10px;
+}
+
+.muscle-progress .progress-track {
+  background: #e8eee8;
+  border-radius: 99px;
+  height: 7px;
+  overflow: hidden;
+}
+
+.muscle-progress .progress-track span {
+  background: #4a896b;
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+}
+
+.schedule-week-header {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e3e9e3;
+  border-radius: 14px;
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  padding: 15px 18px;
+}
+
+.schedule-week-header > div {
+  text-align: center;
+}
+
+.schedule-week-header .eyebrow {
+  font-size: 8px;
+  margin: 0 0 5px;
+}
+
+.schedule-week-header h2 {
+  color: #1d3d34;
+  font-size: 18px;
+  margin: 0;
+}
+
+.week-nav-button {
+  align-items: center;
+  background: #f2f6f1;
+  border: 1px solid #e3e9e3;
+  border-radius: 9px;
+  color: #355d49;
+  cursor: pointer;
+  display: flex;
+  font-size: 27px;
+  height: 38px;
+  justify-content: center;
+  line-height: 1;
+  width: 38px;
+}
+
+.schedule-days {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.schedule-day {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e3e9e3;
+  border-radius: 12px;
+  color: #5e7065;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 6px;
+  transition: border-color .16s ease, background .16s ease;
+}
+
+.schedule-day.is-selected {
+  background: #eff5ed;
+  border-color: #4e896b;
+  box-shadow: 0 0 0 1px #4e896b;
+}
+
+.schedule-day-name {
+  color: #7c8981;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: .5px;
+}
+
+.schedule-date {
+  color: #294239;
+  font-size: 19px;
+}
+
+.schedule-day-icon {
+  align-items: center;
+  background: #e5f1e7;
+  border-radius: 50%;
+  color: #3e805f;
+  display: flex;
+  height: 26px;
+  justify-content: center;
+  width: 26px;
+}
+
+.schedule-day-icon.is-rest {
+  background: #f0f1ec;
+  color: #78877c;
+}
+
+.schedule-day-icon svg {
+  height: 13px;
+  width: 13px;
+}
+
+.schedule-workout-name {
+  color: #445a4e;
+  font-size: 9px;
+  font-weight: 650;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedule-day small {
+  color: #829087;
+  font-size: 8px;
+}
+
+.scheduled-workout-card {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e3e9e3;
+  border-radius: 14px;
+  display: flex;
+  gap: 16px;
+  min-height: 136px;
+  padding: 21px;
+}
+
+.scheduled-date-badge {
+  align-items: center;
+  background: #e7f1e8;
+  border-radius: 12px;
+  color: #34704f;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  height: 62px;
+  justify-content: center;
+  width: 62px;
+}
+
+.scheduled-date-badge.is-rest {
+  background: #f0f1ec;
+  color: #6f7d73;
+}
+
+.scheduled-date-badge.is-scheduled {
+  background: #15362f;
+  color: #fff;
+}
+
+.scheduled-date-badge strong {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.scheduled-date-badge small {
+  font-size: 8px;
+  font-weight: 750;
+  margin-top: 5px;
+}
+
+.scheduled-workout-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.up-next-label {
+  color: #40805f;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .8px;
+}
+
+.up-next-label.is-completed {
+  color: #79867e;
+}
+
+.scheduled-workout-copy h3 {
+  color: #294239;
+  font-size: 17px;
+  margin: 5px 0;
+}
+
+.scheduled-workout-copy p {
+  color: #78877f;
+  font-size: 10px;
+  margin: 0;
+}
+
+.schedule-view-button {
+  flex: 0 0 auto;
+}
+
+.week-nav-button:focus-visible,
+.schedule-day:focus-visible,
+.metric-select-label select:focus-visible,
+.schedule-view-button:focus-visible {
+  outline: 3px solid #a7cd63;
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .progress-detail-grid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(220px, .9fr);
   }
 
   .progress-metric-card {
-    background: #fff;
-    border: 1px solid #e3e9e3;
-    border-radius: 14px;
-    display: grid;
-    grid-template-columns: 38px 1fr;
-    grid-template-rows: auto auto auto;
-    min-height: 132px;
-    padding: 17px;
-  }
-
-  .progress-metric-icon {
-    align-items: center;
-    background: #eaf2e9;
-    border-radius: 10px;
-    color: #38745b;
-    display: flex;
-    grid-row: 1 / 4;
-    height: 36px;
-    justify-content: center;
-    margin-right: 12px;
-    width: 36px;
-  }
-
-  .progress-metric-icon svg {
-    height: 18px;
-    width: 18px;
+    padding: 13px;
   }
 
   .progress-metric-card strong {
-    color: #1d3d34;
-    font-size: 24px;
-    line-height: 1;
+    font-size: 21px;
+  }
+}
+
+@media (max-width: 720px) {
+  .progress-screen,
+  .schedule-screen {
+    gap: 13px;
   }
 
-  .progress-metric-card b {
-    color: #435b4e;
-    font-size: 11px;
-    margin-top: 5px;
+  .progress-metric-grid {
+    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .progress-metric-card small {
-    color: #829087;
-    font-size: 9px;
-    margin-top: 5px;
+  .progress-metric-card {
+    min-height: 106px;
+    padding: 12px;
+  }
+
+  .progress-metric-card strong {
+    font-size: 20px;
   }
 
   .progress-detail-grid {
-    display: grid;
-    gap: 16px;
-    grid-template-columns: minmax(0, 1.65fr) minmax(245px, .9fr);
+    grid-template-columns: 1fr;
   }
 
   .consistency-panel,
   .muscle-panel {
-    min-width: 0;
-    padding: 20px;
-  }
-
-  .consistency-panel .panel-heading {
-    align-items: center;
-  }
-
-  .consistency-panel .panel-heading h3,
-  .muscle-panel h3 {
-    color: #294239;
-    font-size: 16px;
-    margin: 0;
-  }
-
-  .consistency-panel .eyebrow,
-  .muscle-panel .eyebrow {
-    font-size: 8px;
-    margin: 0 0 6px;
-  }
-
-  .metric-select-label select {
-    appearance: none;
-    background: #f5f7f3;
-    border: 1px solid #e1e8e1;
-    border-radius: 8px;
-    color: #52665a;
-    cursor: pointer;
-    font: inherit;
-    font-size: 10px;
-    min-height: 34px;
-    padding: 0 26px 0 10px;
-  }
-
-  .metric-select-label {
-    position: relative;
-  }
-
-  .metric-select-label::after {
-    border-bottom: 1.5px solid #61776a;
-    border-right: 1.5px solid #61776a;
-    content: '';
-    height: 6px;
-    pointer-events: none;
-    position: absolute;
-    right: 11px;
-    top: 11px;
-    transform: rotate(45deg);
-    width: 6px;
+    padding: 15px;
   }
 
   .consistency-chart {
-    display: block;
-    height: 200px;
-    margin-top: 20px;
-    overflow: visible;
-    width: 100%;
-  }
-
-  .consistency-area {
-    fill: #e7f1e8;
-  }
-
-  .consistency-line {
-    fill: none;
-    stroke: #438565;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-width: 3;
-    vector-effect: non-scaling-stroke;
-  }
-
-  .consistency-axis {
-    color: #849188;
-    display: flex;
-    font-size: 9px;
-    justify-content: space-between;
-    margin-top: 8px;
-  }
-
-  .muscle-panel > .eyebrow {
-    margin-bottom: 7px;
-  }
-
-  .muscle-progress {
-    margin-top: 21px;
-  }
-
-  .muscle-progress > div:first-child {
-    align-items: center;
-    color: #53665b;
-    display: flex;
-    font-size: 10px;
-    justify-content: space-between;
-    margin-bottom: 8px;
-  }
-
-  .muscle-progress strong {
-    color: #315945;
-    font-size: 10px;
-  }
-
-  .muscle-progress .progress-track {
-    background: #e8eee8;
-    border-radius: 99px;
-    height: 7px;
-    overflow: hidden;
-  }
-
-  .muscle-progress .progress-track span {
-    background: #4a896b;
-    border-radius: inherit;
-    display: block;
-    height: 100%;
-  }
-
-  .schedule-week-header {
-    align-items: center;
-    background: #fff;
-    border: 1px solid #e3e9e3;
-    border-radius: 14px;
-    display: flex;
-    justify-content: space-between;
-    padding: 15px 18px;
-  }
-
-  .schedule-week-header > div {
-    text-align: center;
-  }
-
-  .schedule-week-header .eyebrow {
-    font-size: 8px;
-    margin: 0 0 5px;
-  }
-
-  .schedule-week-header h2 {
-    color: #1d3d34;
-    font-size: 18px;
-    margin: 0;
-  }
-
-  .week-nav-button {
-    align-items: center;
-    background: #f2f6f1;
-    border: 1px solid #e3e9e3;
-    border-radius: 9px;
-    color: #355d49;
-    cursor: pointer;
-    display: flex;
-    font-size: 27px;
-    height: 38px;
-    justify-content: center;
-    line-height: 1;
-    width: 38px;
+    height: 155px;
+    margin-top: 15px;
   }
 
   .schedule-days {
-    display: grid;
-    gap: 10px;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 5px;
   }
 
   .schedule-day {
-    align-items: center;
-    background: #fff;
-    border: 1px solid #e3e9e3;
-    border-radius: 12px;
-    color: #5e7065;
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    min-width: 0;
-    padding: 12px 6px;
-    transition: border-color .16s ease, background .16s ease;
-  }
-
-  .schedule-day.is-selected {
-    background: #eff5ed;
-    border-color: #4e896b;
-    box-shadow: 0 0 0 1px #4e896b;
-  }
-
-  .schedule-day-name {
-    color: #7c8981;
-    font-size: 8px;
-    font-weight: 750;
-    letter-spacing: .5px;
+    gap: 6px;
+    padding: 10px 3px;
   }
 
   .schedule-date {
-    color: #294239;
-    font-size: 19px;
-  }
-
-  .schedule-day-icon {
-    align-items: center;
-    background: #e5f1e7;
-    border-radius: 50%;
-    color: #3e805f;
-    display: flex;
-    height: 26px;
-    justify-content: center;
-    width: 26px;
-  }
-
-  .schedule-day-icon.is-rest {
-    background: #f0f1ec;
-    color: #78877c;
-  }
-
-  .schedule-day-icon svg {
-    height: 13px;
-    width: 13px;
+    font-size: 17px;
   }
 
   .schedule-workout-name {
-    color: #445a4e;
-    font-size: 9px;
-    font-weight: 650;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 8px;
   }
 
   .schedule-day small {
-    color: #829087;
-    font-size: 8px;
+    font-size: 7px;
   }
 
   .scheduled-workout-card {
-    align-items: center;
-    background: #fff;
-    border: 1px solid #e3e9e3;
-    border-radius: 14px;
-    display: flex;
-    gap: 16px;
-    min-height: 136px;
-    padding: 21px;
-  }
-
-  .scheduled-date-badge {
-    align-items: center;
-    background: #e7f1e8;
-    border-radius: 12px;
-    color: #34704f;
-    display: flex;
-    flex: 0 0 auto;
-    flex-direction: column;
-    height: 62px;
-    justify-content: center;
-    width: 62px;
-  }
-
-  .scheduled-date-badge.is-rest {
-    background: #f0f1ec;
-    color: #6f7d73;
-  }
-
-  .scheduled-date-badge strong {
-    font-size: 20px;
-    line-height: 1;
-  }
-
-  .scheduled-date-badge small {
-    font-size: 8px;
-    font-weight: 750;
-    margin-top: 5px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 15px;
   }
 
   .scheduled-workout-copy {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .up-next-label {
-    color: #40805f;
-    font-size: 8px;
-    font-weight: 800;
-    letter-spacing: .8px;
-  }
-
-  .up-next-label.is-completed {
-    color: #79867e;
+    padding-top: 3px;
   }
 
   .scheduled-workout-copy h3 {
-    color: #294239;
-    font-size: 17px;
-    margin: 5px 0;
-  }
-
-  .scheduled-workout-copy p {
-    color: #78877f;
-    font-size: 10px;
-    margin: 0;
+    font-size: 15px;
   }
 
   .schedule-view-button {
-    flex: 0 0 auto;
+    margin-left: 74px;
+  }
+}
+
+@media (max-width: 390px) {
+  .schedule-workout-name {
+    max-width: 40px;
   }
 
-  .week-nav-button:focus-visible,
-  .schedule-day:focus-visible,
-  .metric-select-label select:focus-visible,
-  .schedule-view-button:focus-visible {
-    outline: 3px solid #a7cd63;
-    outline-offset: 2px;
+  .schedule-day {
+    gap: 5px;
+    padding-left: 1px;
+    padding-right: 1px;
   }
 
-  @media (max-width: 900px) {
-    .progress-detail-grid {
-      grid-template-columns: minmax(0, 1.35fr) minmax(220px, .9fr);
-    }
-
-    .progress-metric-card {
-      padding: 13px;
-    }
-
-    .progress-metric-card strong {
-      font-size: 21px;
-    }
+  .scheduled-workout-copy p {
+    font-size: 9px;
   }
+}
 
-  @media (max-width: 720px) {
-    .progress-screen,
-    .schedule-screen {
-      gap: 13px;
-    }
-
-    .progress-metric-grid {
-      gap: 8px;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .progress-metric-card {
-      min-height: 106px;
-      padding: 12px;
-    }
-
-    .progress-metric-card strong {
-      font-size: 20px;
-    }
-
-    .progress-detail-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .consistency-panel,
-    .muscle-panel {
-      padding: 15px;
-    }
-
-    .consistency-chart {
-      height: 155px;
-      margin-top: 15px;
-    }
-
-    .schedule-days {
-      gap: 5px;
-    }
-
-    .schedule-day {
-      gap: 6px;
-      padding: 10px 3px;
-    }
-
-    .schedule-date {
-      font-size: 17px;
-    }
-
-    .schedule-workout-name {
-      font-size: 8px;
-    }
-
-    .schedule-day small {
-      font-size: 7px;
-    }
-
-    .scheduled-workout-card {
-      align-items: flex-start;
-      flex-wrap: wrap;
-      gap: 12px;
-      padding: 15px;
-    }
-
-    .scheduled-workout-copy {
-      padding-top: 3px;
-    }
-
-    .scheduled-workout-copy h3 {
-      font-size: 15px;
-    }
-
-    .schedule-view-button {
-      margin-left: 74px;
-    }
-  }
-
-  @media (max-width: 390px) {
-    .schedule-workout-name {
-      max-width: 40px;
-    }
-
-    .schedule-day {
-      gap: 5px;
-      padding-left: 1px;
-      padding-right: 1px;
-    }
-
-    .scheduled-workout-copy p {
-      font-size: 9px;
-    }
-  }
-
+@media (max-width: 720px) {
   .screen-intro {
     align-items: flex-start;
     flex-direction: column;
