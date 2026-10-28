@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import Database from 'better-sqlite3';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -10,8 +11,15 @@ import { fileURLToPath } from 'node:url';
 
 let apiProcess;
 let apiUrl;
+let authCookie;
 let temporaryDirectory;
 let processOutput = '';
+
+async function fetch(url, options = {}) {
+  const headers = new Headers(options.headers);
+  if (authCookie && !headers.has('cookie')) headers.set('Cookie', authCookie);
+  return globalThis.fetch(url, { ...options, headers });
+}
 
 async function getAvailablePort() {
   const listener = createServer();
@@ -40,10 +48,37 @@ before(async () => {
   temporaryDirectory = await mkdtemp(join(tmpdir(), 'fitness-tracker-api-'));
   const port = await getAvailablePort();
   apiUrl = `http://127.0.0.1:${port}/api`;
+  const databasePath = join(temporaryDirectory, 'test.sqlite');
+  const legacyDatabase = new Database(databasePath);
+  legacyDatabase.exec(`
+    PRAGMA foreign_keys = ON;
+    CREATE TABLE exercises (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      category TEXT NOT NULL,
+      level TEXT NOT NULL,
+      sets INTEGER NOT NULL,
+      reps TEXT NOT NULL,
+      instruction TEXT NOT NULL,
+      equipment TEXT NOT NULL DEFAULT 'No equipment'
+    );
+    INSERT INTO exercises (id, name, category, level, sets, reps, instruction)
+      VALUES ('squat', 'Bodyweight Squat', 'Lower body', 'Beginner', 3, '10 reps', 'Squat with control.');
+    CREATE TABLE favorite_exercises (
+      exercise_id TEXT PRIMARY KEY REFERENCES exercises(id) ON DELETE CASCADE
+    );
+    INSERT INTO favorite_exercises (exercise_id) VALUES ('squat');
+    CREATE TABLE plan_exercises (
+      exercise_id TEXT PRIMARY KEY REFERENCES exercises(id) ON DELETE CASCADE,
+      added_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    INSERT INTO plan_exercises (exercise_id) VALUES ('squat');
+  `);
+  legacyDatabase.close();
   apiProcess = spawn(process.execPath, [fileURLToPath(new URL('./index.js', import.meta.url))], {
     env: {
       ...process.env,
-      DATABASE_PATH: join(temporaryDirectory, 'test.sqlite'),
+      DATABASE_PATH: databasePath,
       EXERCISEAPI_KEY: '',
       PORT: String(port),
     },
@@ -52,6 +87,17 @@ before(async () => {
   apiProcess.stdout.on('data', (data) => { processOutput += data.toString(); });
   apiProcess.stderr.on('data', (data) => { processOutput += data.toString(); });
   await waitForApi();
+  const account = await globalThis.fetch(`${apiUrl}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'API Test User',
+      email: 'api-test@example.com',
+      password: 'strong-test-password',
+    }),
+  });
+  assert.equal(account.status, 201);
+  authCookie = account.headers.get('set-cookie').split(';')[0];
 });
 
 after(async () => {
@@ -63,6 +109,12 @@ after(async () => {
 });
 
 test('exercise, plan, workout, and progress API workflows persist correctly', async (context) => {
+  await context.test('assigns existing single-user favorites and plan items to the first account', async () => {
+    const [squat] = (await fetch(`${apiUrl}/exercises?search=Bodyweight%20Squat`).then((response) => response.json()));
+    assert.equal(squat.isFavorite, true);
+    assert.equal(squat.isAdded, true);
+  });
+
   await context.test('reports missing ExerciseAPI.dev configuration without exposing credentials', async () => {
     const status = await (await fetch(`${apiUrl}/exercise-api/status`)).json();
     assert.equal(status.configured, false);
@@ -334,4 +386,115 @@ test('exercise, plan, workout, and progress API workflows persist correctly', as
     assert.equal(response.status, 400);
     assert.ok((await response.json()).error);
   });
+});
+
+test('accounts persist profile details and keep workout data private', async () => {
+  const anonymousWorkouts = await globalThis.fetch(`${apiUrl}/workouts`);
+  assert.equal(anonymousWorkouts.status, 401);
+  const anonymousProfile = await globalThis.fetch(`${apiUrl}/auth/me`);
+  assert.deepEqual(await anonymousProfile.json(), { user: null });
+  const wrongPassword = await globalThis.fetch(`${apiUrl}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'api-test@example.com', password: 'wrong-password' }),
+  });
+  assert.equal(wrongPassword.status, 401);
+
+  const login = await globalThis.fetch(`${apiUrl}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'API-TEST@example.com', password: 'strong-test-password' }),
+  });
+  assert.equal(login.status, 200);
+  assert.match(login.headers.get('set-cookie'), /HttpOnly/);
+
+  const profileUpdate = await fetch(`${apiUrl}/auth/profile`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      phone: '+1 (555) 123-4567',
+      addressLine1: '123 Fitness Street',
+      city: 'Portland',
+      region: 'Oregon',
+      postalCode: '97201',
+      country: 'United States',
+    }),
+  });
+  assert.equal(profileUpdate.status, 200);
+  const profile = (await profileUpdate.json()).user;
+  assert.equal(profile.addressLine1, '123 Fitness Street');
+  assert.equal(profile.city, 'Portland');
+  assert.equal(profile.phone, '+1 (555) 123-4567');
+  assert.equal('password_hash' in profile, false);
+
+  const invalidProfileUpdate = await fetch(`${apiUrl}/auth/profile`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: 'not a phone' }),
+  });
+  assert.equal(invalidProfileUpdate.status, 400);
+
+  const duplicateAccount = await globalThis.fetch(`${apiUrl}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Another User',
+      email: 'API-TEST@example.com',
+      password: 'strong-test-password',
+    }),
+  });
+  assert.equal(duplicateAccount.status, 409);
+
+  const workoutResponse = await fetch(`${apiUrl}/workouts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Private workout',
+      duration: 20,
+      exercises: [],
+    }),
+  });
+  assert.equal(workoutResponse.status, 201);
+  const workout = await workoutResponse.json();
+  await fetch(`${apiUrl}/favorites/squat`, { method: 'PUT' });
+
+  const secondAccount = await globalThis.fetch(`${apiUrl}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Second API User',
+      email: 'second-api-test@example.com',
+      password: 'another-strong-password',
+    }),
+  });
+  assert.equal(secondAccount.status, 201);
+  const secondCookie = secondAccount.headers.get('set-cookie').split(';')[0];
+  const secondWorkouts = await globalThis.fetch(`${apiUrl}/workouts`, {
+    headers: { Cookie: secondCookie },
+  });
+  assert.deepEqual(await secondWorkouts.json(), []);
+  const secondSquat = (await globalThis.fetch(`${apiUrl}/exercises?search=Bodyweight%20Squat`, {
+    headers: { Cookie: secondCookie },
+  }).then((response) => response.json())).find((exercise) => exercise.id === 'squat');
+  assert.equal(secondSquat.isFavorite, false);
+
+  const cannotEditOtherWorkout = await globalThis.fetch(`${apiUrl}/workouts/${workout.id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Cookie: secondCookie },
+    body: JSON.stringify({ name: 'Stolen workout', duration: 25 }),
+  });
+  assert.equal(cannotEditOtherWorkout.status, 404);
+
+  const secondGoal = await globalThis.fetch(`${apiUrl}/fitness-goal`, {
+    headers: { Cookie: secondCookie },
+  });
+  assert.equal(await secondGoal.json(), null);
+  await fetch(`${apiUrl}/favorites/squat`, { method: 'DELETE' });
+
+  const secondLogout = await globalThis.fetch(`${apiUrl}/auth/logout`, {
+    method: 'POST',
+    headers: { Cookie: secondCookie },
+  });
+  assert.equal(secondLogout.status, 204);
+  assert.match(secondLogout.headers.get('set-cookie'), /Max-Age=0/);
 });

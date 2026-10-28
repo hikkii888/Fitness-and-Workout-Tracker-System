@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import { apiRequest, toExerciseNames } from './api';
 import { fetchWorkoutExerciseCandidates } from './exerciseApiService';
-import ActiveWorkout from './components/ActiveWorkout';
-import Achievements from './components/Achievements';
-import FitnessGoalSelection from './components/FitnessGoalSelection';
-import ExerciseLibrary from './components/ExerciseLibrary';
-import HomeDashboard from './components/HomeDashboard';
-import Icon from './components/Icon';
-import WorkoutSchedule from './components/WorkoutSchedule';
-import WorkoutPlan from './components/WorkoutPlan';
-import WorkoutFeedback from './components/WorkoutFeedback';
+import ActiveWorkout from './pages/ActiveWorkout';
+import Achievements from './pages/Achievements';
+import AuthScreen from './pages/AuthScreen';
+import FitnessGoalSelection from './pages/FitnessGoalSelection';
+import ExerciseLibrary from './pages/ExerciseLibrary';
+import HomeDashboard from './pages/HomeDashboard';
+import Icon from './pages/Icon';
+import ProfilePage from './pages/ProfilePage';
+import WorkoutSchedule from './pages/WorkoutSchedule';
+import WorkoutPlan from './pages/WorkoutPlan';
+import WorkoutFeedback from './pages/WorkoutFeedback';
 import { createWorkoutPlan } from './workoutPlan';
 
 const progressMetricOptions = ['Workouts', 'Active minutes', 'Total reps'];
@@ -25,6 +27,7 @@ const navigation = [
   { id: 'schedule', label: 'Schedule', icon: 'calendar' },
   { id: 'achievements', label: 'Achievements', icon: 'star' },
   { id: 'history', label: 'Workout History', icon: 'history' },
+  { id: 'profile', label: 'Profile', icon: 'user' },
 ];
 
 function formatWorkoutDate(date) {
@@ -293,6 +296,11 @@ function WorkoutHistory() {
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('home');
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authStatus, setAuthStatus] = useState('checking');
+  const [authMode, setAuthMode] = useState('login');
+  const [authError, setAuthError] = useState('');
+  const [authRetry, setAuthRetry] = useState(0);
   const [notice, setNotice] = useState('');
   const [exerciseCatalog, setExerciseCatalog] = useState([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
@@ -307,6 +315,25 @@ function App() {
   const [activeWorkoutExercises, setActiveWorkoutExercises] = useState([]);
   const [workoutStatus, setWorkoutStatus] = useState('none');
 
+  useEffect(() => {
+    let active = true;
+    apiRequest('/auth/me')
+      .then(({ user }) => {
+        if (active) {
+          setCurrentUser(user);
+          setAuthError('');
+          setAuthStatus('ready');
+        }
+      })
+      .catch((requestError) => {
+        if (active) {
+          setAuthError(requestError.message);
+          setAuthStatus('error');
+        }
+      });
+    return () => { active = false; };
+  }, [authRetry]);
+
   const refreshExerciseCatalog = async () => {
     const [exercises, plan] = await Promise.all([
       apiRequest('/exercises'),
@@ -317,7 +344,9 @@ function App() {
     setApiError('');
   };
 
+  const userId = currentUser?.id;
   useEffect(() => {
+    if (!userId) return undefined;
     let active = true;
     Promise.all([
       apiRequest('/exercises'),
@@ -339,7 +368,30 @@ function App() {
         if (active) setCatalogLoading(false);
       });
     return () => { active = false; };
-  }, []);
+  }, [userId]);
+
+  const handleAuthenticated = (user) => {
+      setCurrentUser(user);
+      setCurrentScreen('home');
+      setAuthError('');
+      setApiError('');
+  };
+
+  const handleLogout = async () => {
+      await apiRequest('/auth/logout', { method: 'POST' });
+      setCurrentUser(null);
+      setCurrentScreen('home');
+      setCatalogLoading(true);
+      setExerciseCatalog([]);
+      setPlanExercises([]);
+      setFitnessProfile(null);
+      setWorkoutPlan(null);
+      setPendingWorkout(null);
+      setActiveWorkoutExercises([]);
+      setWorkoutStatus('none');
+      setApiError('');
+      setAuthMode('login');
+  };
 
   const showNotice = (message) => {
     setNotice(message);
@@ -505,6 +557,30 @@ function App() {
     }
   };
 
+  if (authStatus === 'checking') {
+    return <main className="auth-status">Checking your account…</main>;
+  }
+  if (authStatus === 'error') {
+    return (
+      <main className="auth-status" role="alert">
+        <p>Could not reach the account server: {authError}</p>
+        <button className="primary-button" onClick={() => {
+          setAuthStatus('checking');
+          setAuthRetry((value) => value + 1);
+        }} type="button">Try again</button>
+      </main>
+    );
+  }
+  if (!currentUser) {
+    return (
+      <AuthScreen
+        mode={authMode}
+        onAuthenticated={handleAuthenticated}
+        onModeChange={setAuthMode}
+      />
+    );
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -515,7 +591,7 @@ function App() {
 
         <nav className="side-nav" aria-label="Main navigation">
           {navigation.map((item) => {
-            const isAvailable = ['home', 'goals', 'plan', 'library', 'workout', 'feedback', 'progress', 'schedule', 'achievements', 'history'].includes(item.id);
+            const isAvailable = ['home', 'goals', 'plan', 'library', 'workout', 'feedback', 'progress', 'schedule', 'achievements', 'history', 'profile'].includes(item.id);
             return (
               <button
                 className={`side-nav-item ${currentScreen === item.id ? 'is-active' : ''}`}
@@ -558,6 +634,7 @@ function App() {
               schedule: 'Workout Schedule',
               achievements: 'Achievements',
               history: 'Workout History',
+              profile: 'My Profile',
             })[currentScreen] || 'Home Dashboard'}</h1>
           </div>
           <div className="topbar-actions">
@@ -568,8 +645,12 @@ function App() {
               <Icon name="bell" />
             </button>
             <div className="profile">
-              <span className="avatar">JD</span>
-              <span className="profile-copy"><strong>Jamie Davis</strong><small>Level 4</small></span>
+              <span className="avatar">
+                {currentUser.avatarDataUrl
+                  ? <img src={currentUser.avatarDataUrl} alt="" />
+                  : currentUser.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')}
+              </span>
+              <span className="profile-copy"><strong>{currentUser.name}</strong><small>{currentUser.email}</small></span>
             </div>
           </div>
         </header>
@@ -594,6 +675,12 @@ function App() {
             />
           ) : currentScreen === 'history' ? (
             <WorkoutHistory />
+          ) : currentScreen === 'profile' ? (
+            <ProfilePage
+              onLogout={handleLogout}
+              onUserUpdated={setCurrentUser}
+              user={currentUser}
+            />
           ) : currentScreen === 'achievements' ? (
             <Achievements />
           ) : currentScreen === 'plan' ? (
