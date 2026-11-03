@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import FitnessGoalSelection from './components/FitnessGoalSelection';
 import HomeDashboard from './components/HomeDashboard';
 import Icon from './components/Icon';
@@ -12,6 +12,7 @@ const workoutRecords = [
 
 const navigation = [
   { id: 'home', label: 'Home', icon: 'home' },
+  { id: 'profile', label: 'Profile', icon: 'user' },
   { id: 'goals', label: 'Fitness Goals', icon: 'target' },
   { id: 'plan', label: 'My Plan', icon: 'calendar' },
   { id: 'library', label: 'Exercise Library', icon: 'library' },
@@ -240,6 +241,76 @@ function WorkoutHistory() {
   );
 }
 
+function PageIntro({ eyebrow, title, description }) {
+  return <div className="screen-intro"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2><p>{description}</p></div></div>;
+}
+
+function ProfileScreen({ onOpenGoals, onOpenHistory }) {
+  return <section className="screen-stack feature-screen">
+    <PageIntro eyebrow="YOUR ACCOUNT" title="A routine that fits you." description="Your profile, preferences, and fitness journey in one place." />
+    <article className="profile-hero panel"><span className="profile-avatar-large">JD</span><div><p className="eyebrow">LEVEL 4 · BEGINNER</p><h3>Jamie Davis</h3><p>Building strength, one session at a time.</p></div><span className="profile-streak"><Icon name="flame" /> 3 day streak</span></article>
+    <div className="feature-grid"><article className="feature-card"><span className="eyebrow">MY FITNESS GOAL</span><h3>Build strength</h3><p>8-week beginner program</p><button className="text-link" onClick={onOpenGoals}>Edit goal <Icon name="arrow" /></button></article><article className="feature-card"><span className="eyebrow">THIS MONTH</span><h3>12 workouts</h3><p>4 hours and 36 minutes active</p><button className="text-link" onClick={onOpenHistory}>View workout history <Icon name="arrow" /></button></article><article className="feature-card"><span className="eyebrow">PREFERENCES</span><h3>Workout reminders</h3><p>Monday, Wednesday, Friday · 7:00 AM</p><span className="preference-chip">Enabled</span></article></div>
+  </section>;
+}
+
+const planExercises = [
+  ['01', 'Warm-up and mobility', '4 min', 'Gentle movement to get ready'],
+  ['02', 'Bodyweight squats', '3 sets · 10 reps', 'Build a strong lower body'],
+  ['03', 'Incline push-ups', '3 sets · 8 reps', 'A beginner-friendly push'],
+  ['04', 'Dumbbell rows', '3 sets · 10 reps', 'Strengthen your upper back'],
+  ['05', 'Glute bridges', '3 sets · 12 reps', 'Wake up your glutes'],
+  ['06', 'Standing shoulder press', '2 sets · 10 reps', 'Move with a light weight'],
+  ['07', 'Cool-down stretch', '4 min', 'Finish with an easy stretch'],
+];
+
+function PlanScreen({ onStart }) {
+  return <section className="screen-stack feature-screen"><PageIntro eyebrow="TODAY · 28 MINUTES" title="Full Body Foundation" description="A steady, beginner-friendly session. Take breaks whenever you need." /><div className="plan-list">{planExercises.map(([number, name, detail, hint]) => <article className="plan-row" key={number}><span className="plan-number">{number}</span><div><h3>{name}</h3><p>{hint}</p></div><span className="plan-detail">{detail}</span></article>)}</div><button className="primary-button feature-cta" onClick={onStart}><Icon name="play" /> Start workout</button></section>;
+}
+
+const libraryExercises = [
+  ['Bodyweight squat', 'Legs · Beginner', 'Stand tall, sit your hips back, then press through your feet to rise.'],
+  ['Incline push-up', 'Chest · Beginner', 'Place hands on a sturdy elevated surface and lower with control.'],
+  ['Glute bridge', 'Glutes · Beginner', 'Lie on your back, bend your knees, and lift your hips gently.'],
+  ['Bird dog', 'Core · Beginner', 'From hands and knees, extend opposite arm and leg while staying steady.'],
+  ['Dumbbell row', 'Back · Beginner', 'Hinge at the hips and pull a light weight toward your ribs.'],
+  ['Dead bug', 'Core · Beginner', 'Lower opposite arm and leg while keeping your lower back comfortable.'],
+];
+
+function LibraryScreen({ onStart }) {
+  const [query, setQuery] = useState('');
+  const matches = libraryExercises.filter(([name, tags]) => `${name} ${tags}`.toLowerCase().includes(query.toLowerCase()));
+  return <section className="screen-stack feature-screen"><PageIntro eyebrow="MOVE WITH CONFIDENCE" title="Exercise Library" description="Simple instructions for the movements in your plan." /><label className="library-search"><Icon name="search" /><input aria-label="Search exercises" onChange={(event) => setQuery(event.target.value)} placeholder="Search movements or muscle groups" value={query} /></label><div className="library-grid">{matches.map(([name, tags, description]) => <article className="feature-card exercise-card" key={name}><span className="exercise-symbol"><Icon name="play" /></span><span className="eyebrow">{tags}</span><h3>{name}</h3><p>{description}</p><button className="text-link" onClick={onStart}>Try in a workout <Icon name="arrow" /></button></article>)}</div>{matches.length === 0 && <div className="history-empty"><h3>No exercises found</h3><p>Try another exercise or muscle group.</p></div>}</section>;
+}
+
+function ActiveWorkout({ onFinish }) {
+  const [step, setStep] = useState(0);
+  const [seconds, setSeconds] = useState(0);
+  const [running, setRunning] = useState(false);
+  useEffect(() => {
+    const timer = window.setInterval(() => setSeconds((value) => running ? value + 1 : value), 1000);
+    return () => window.clearInterval(timer);
+  });
+  const exercise = planExercises[Math.min(step + 1, planExercises.length - 1)];
+  const time = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+  return <section className="screen-stack feature-screen"><PageIntro eyebrow={`EXERCISE ${step + 1} OF ${planExercises.length - 1}`} title="Full Body Foundation" description="Go at your own pace. Your progress is saved on this device." /><article className="workout-focus"><span className="workout-visual"><Icon name="bolt" /></span><p className="eyebrow">UP NEXT</p><h2>{exercise[1]}</h2><p>{exercise[2]}</p><p className="workout-hint">{exercise[3]}</p><div className="timer-display" aria-live="polite">{time}</div><div className="workout-controls"><button className="secondary-button" onClick={() => setRunning((value) => !value)}>{running ? 'Pause timer' : 'Start timer'}</button><button className="primary-button" onClick={() => step + 1 >= planExercises.length - 1 ? onFinish() : setStep((value) => value + 1)}>{step + 1 >= planExercises.length - 1 ? 'Finish workout' : 'Next exercise'} <Icon name="arrow" /></button></div></article><div className="progress-track workout-track"><span style={{ width: `${((step + 1) / (planExercises.length - 1)) * 100}%` }} /></div></section>;
+}
+
+function FeedbackScreen({ onDone }) {
+  const [rating, setRating] = useState(0);
+  const [feeling, setFeeling] = useState('');
+  return <section className="screen-stack feature-screen"><PageIntro eyebrow="WORKOUT COMPLETE" title="You showed up. That counts." description="Check in with yourself before you head out." /><article className="feedback-card panel"><p className="eyebrow">HOW DID THAT FEEL?</p><div className="rating-options" role="group" aria-label="Workout rating">{['Tough', 'Just right', 'Easy'].map((label, index) => <button aria-pressed={rating === index + 1} className={rating === index + 1 ? 'is-selected' : ''} key={label} onClick={() => setRating(index + 1)}>{['😮‍💨', '🙂', '✨'][index]}<span>{label}</span></button>)}</div><label className="edit-field">Anything you want to remember?<textarea onChange={(event) => setFeeling(event.target.value)} placeholder="A small win, a movement you liked..." value={feeling} /></label><button className="primary-button feature-cta" onClick={onDone}>Save workout <Icon name="check" /></button></article></section>;
+}
+
+function ScheduleScreen({ onOpenPlan }) {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  return <section className="screen-stack feature-screen"><PageIntro eyebrow="YOUR WEEK" title="Make room for movement." description="A flexible plan helps you build a routine that lasts." /><article className="panel schedule-panel"><div className="schedule-heading"><div><p className="eyebrow">NOVEMBER 2026</p><h3>Week of November 2</h3></div><span className="preference-chip">3 of 4 sessions</span></div><div className="schedule-days">{days.map((day, index) => <div className={`schedule-day ${[0, 2, 4].includes(index) ? 'has-workout' : ''}`} key={day}><span>{day}</span><strong>{2 + index}</strong>{[0, 2, 4].includes(index) && <i />}</div>)}</div></article><article className="feature-card"><span className="eyebrow">UP NEXT · WEDNESDAY</span><h3>Full Body Foundation</h3><p>28 minutes · Beginner strength</p><button className="text-link" onClick={onOpenPlan}>Review workout plan <Icon name="arrow" /></button></article></section>;
+}
+
+function AchievementsScreen() {
+  const badges = [['First Steps', 'Complete your first workout', true], ['Finding a Rhythm', 'Work out 3 times in one week', true], ['Streak Starter', 'Show up 3 days in a row', true], ['Halfway There', 'Reach week 4 of your plan', false], ['Stronger Every Week', 'Finish the 8-week program', false], ['Move for 100', 'Log 100 active minutes', false]];
+  return <section className="screen-stack feature-screen"><PageIntro eyebrow="EVERY WIN COUNTS" title="Look how far you’ve come." description="Celebrate the small steps that make a strong routine." /><div className="achievement-summary panel"><span className="achievement-medal"><Icon name="star" /></span><div><p className="eyebrow">BADGES EARNED</p><h3>3 of 6 achievements</h3><p>Keep going—your next milestone is close.</p></div></div><div className="achievement-grid">{badges.map(([title, detail, earned]) => <article className={`feature-card achievement-card ${earned ? 'is-earned' : ''}`} key={title}><span className="achievement-icon"><Icon name={earned ? 'check' : 'star'} /></span><h3>{title}</h3><p>{detail}</p><span className="eyebrow">{earned ? 'COMPLETED' : 'IN PROGRESS'}</span></article>)}</div></section>;
+}
+
 function App() {
   const [currentScreen, setCurrentScreen] = useState('home');
   const [notice, setNotice] = useState('');
@@ -263,17 +334,14 @@ function App() {
 
         <nav className="side-nav" aria-label="Main navigation">
           {navigation.map((item) => {
-            const isAvailable = ['home', 'goals', 'progress', 'history'].includes(item.id);
             return (
               <button
                 className={`side-nav-item ${currentScreen === item.id ? 'is-active' : ''}`}
                 data-nav-id={item.id}
                 key={item.id}
                 type="button"
-                disabled={!isAvailable}
-                onClick={() => isAvailable && setCurrentScreen(item.id)}
+                onClick={() => setCurrentScreen(item.id)}
                 aria-current={currentScreen === item.id ? 'page' : undefined}
-                title={!isAvailable ? `${item.label} — coming soon` : undefined}
               >
                 <Icon name={item.icon} />
                 <span>{item.label}</span>
@@ -296,7 +364,7 @@ function App() {
         <header className="topbar">
           <div>
             <p className="eyebrow">BEGINNER PROGRAM</p>
-            <h1>{({ goals: 'Choose Your Fitness Goal', progress: 'Progress & Analytics', history: 'Workout History' })[currentScreen] || 'Home Dashboard'}</h1>
+            <h1>{({ profile: 'Your Profile', goals: 'Choose Your Fitness Goal', plan: 'My Plan', library: 'Exercise Library', workout: 'Active Workout', feedback: 'Workout Feedback', progress: 'Progress & Analytics', schedule: 'Schedule', achievements: 'Achievements', history: 'Workout History' })[currentScreen] || 'Home Dashboard'}</h1>
           </div>
           <div className="topbar-actions">
             <button className="icon-button" type="button" aria-label="Search">
@@ -305,15 +373,29 @@ function App() {
             <button className="icon-button" type="button" aria-label="Notifications">
               <Icon name="bell" />
             </button>
-            <div className="profile">
+            <button className="profile profile-button" type="button" onClick={() => setCurrentScreen('profile')} aria-label="Open Jamie Davis profile">
               <span className="avatar">JD</span>
               <span className="profile-copy"><strong>Jamie Davis</strong><small>Level 4</small></span>
-            </div>
+            </button>
           </div>
         </header>
 
         <main className="page-content">
-          {currentScreen === 'goals' ? (
+          {currentScreen === 'profile' ? (
+            <ProfileScreen onOpenGoals={() => setCurrentScreen('goals')} onOpenHistory={() => setCurrentScreen('history')} />
+          ) : currentScreen === 'plan' ? (
+            <PlanScreen onStart={() => setCurrentScreen('workout')} />
+          ) : currentScreen === 'library' ? (
+            <LibraryScreen onStart={() => setCurrentScreen('workout')} />
+          ) : currentScreen === 'workout' ? (
+            <ActiveWorkout onFinish={() => setCurrentScreen('feedback')} />
+          ) : currentScreen === 'feedback' ? (
+            <FeedbackScreen onDone={() => { showNotice('Workout saved. Great work!'); setCurrentScreen('history'); }} />
+          ) : currentScreen === 'schedule' ? (
+            <ScheduleScreen onOpenPlan={() => setCurrentScreen('plan')} />
+          ) : currentScreen === 'achievements' ? (
+            <AchievementsScreen />
+          ) : currentScreen === 'goals' ? (
             <FitnessGoalSelection
               onBack={() => setCurrentScreen('home')}
               onComplete={handleGoalComplete}
@@ -323,7 +405,10 @@ function App() {
           ) : currentScreen === 'history' ? (
             <WorkoutHistory />
           ) : (
-            <HomeDashboard onContinue={() => setCurrentScreen('goals')} />
+            <HomeDashboard
+              onContinue={() => setCurrentScreen('goals')}
+              onOpenProgress={() => setCurrentScreen('progress')}
+            />
           )}
         </main>
       </div>

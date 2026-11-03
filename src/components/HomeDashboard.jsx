@@ -10,7 +10,7 @@ const weeklyActivity = [
   { day: 'S', height: 10 },
 ];
 
-function HomeDashboard({ onContinue }) {
+function HomeDashboard({ onContinue, onOpenProgress }) {
   return (
     <div className="dashboard">
       <section className="welcome-card">
@@ -91,7 +91,7 @@ function HomeDashboard({ onContinue }) {
           </div>
           <p className="goal-caption">You’re more than halfway to your 8-week strength goal.</p>
           <div className="progress-track goal-track"><span style={{ width: '68%' }} /></div>
-          <button className="text-link" type="button" onClick={onContinue}>See my progress <Icon name="arrow" /></button>
+          <button className="text-link" type="button" onClick={onOpenProgress}>See my progress <Icon name="arrow" /></button>
         </article>
       </section>
     </div>
