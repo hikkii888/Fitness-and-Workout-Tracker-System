@@ -39,60 +39,88 @@ function formatWorkoutDate(date) {
 
 const progressMetrics = {
   Workouts: {
-    values: [27, 44, 39, 53, 47, 69, 61, 83],
-    path: 'M12 105 C52 100 59 78 96 81 S140 91 175 78 S217 68 245 75 S288 54 323 63 S367 72 405 54 S455 29 493 35 S540 52 576 43 S636 21 688 12',
+    values: [2, 3, 2, 4, 3, 4, 3, 5],
+    unit: 'workouts',
   },
   'Active minutes': {
-    values: [22, 38, 35, 54, 46, 65, 73, 89],
-    path: 'M12 108 C47 104 70 88 96 90 S143 78 175 79 S218 93 245 77 S284 58 323 66 S366 43 405 51 S451 61 493 42 S540 31 576 28 S640 16 688 8',
+    values: [95, 112, 104, 145, 128, 168, 152, 196],
+    unit: 'minutes',
   },
   'Total reps': {
-    values: [18, 35, 31, 48, 43, 62, 70, 91],
-    path: 'M12 110 C50 106 64 92 96 94 S140 76 175 83 S219 84 245 72 S284 55 323 61 S367 38 405 43 S455 54 493 36 S539 25 576 25 S634 8 688 6',
+    values: [280, 340, 315, 420, 390, 480, 455, 560],
+    unit: 'reps',
   },
 };
 
+const totalWorkouts = progressMetrics.Workouts.values.reduce((total, value) => total + value, 0);
+const totalActiveMinutes = progressMetrics['Active minutes'].values.reduce((total, value) => total + value, 0);
+const totalReps = progressMetrics['Total reps'].values.reduce((total, value) => total + value, 0);
+const averageWorkoutsPerWeek = (totalWorkouts / progressMetrics.Workouts.values.length).toFixed(1);
+
 function ProgressAnalytics() {
   const [metric, setMetric] = useState('Workouts');
+  const [period, setPeriod] = useState(8);
   const activeMetric = progressMetrics[metric];
+  const visibleValues = activeMetric.values.slice(-period);
+  const chartMax = Math.max(...visibleValues);
+  const chartPath = visibleValues.map((value, index) => {
+    const x = visibleValues.length === 1 ? 350 : 12 + (index * 676) / (visibleValues.length - 1);
+    const y = 120 - (value / chartMax) * 100;
+    return `${index === 0 ? 'M' : 'L'}${x} ${y}`;
+  }).join(' ');
+  const periodTotal = visibleValues.reduce((total, value) => total + value, 0);
+  const weeklyAverage = Math.round(periodTotal / visibleValues.length);
 
   return (
     <section className="progress-screen" aria-label="Progress and workout analytics">
       <div className="progress-metric-grid">
         <article className="progress-metric-card">
           <span className="progress-metric-icon"><Icon name="calendar" /></span>
-          <strong>12</strong><b>Workouts</b><small>+3 this month</small>
+          <strong>{totalWorkouts}</strong><b>Workouts</b><small>Last 8 weeks</small>
         </article>
         <article className="progress-metric-card">
           <span className="progress-metric-icon"><Icon name="clock" /></span>
-          <strong>284</strong><b>Active min</b><small>+18%</small>
+          <strong>{totalActiveMinutes.toLocaleString()}</strong><b>Active min</b><small>Last 8 weeks</small>
         </article>
         <article className="progress-metric-card">
           <span className="progress-metric-icon"><Icon name="bolt" /></span>
-          <strong>4,820</strong><b>Total reps</b><small>+520</small>
+          <strong>{totalReps.toLocaleString()}</strong><b>Total reps</b><small>Last 8 weeks</small>
         </article>
         <article className="progress-metric-card">
           <span className="progress-metric-icon"><Icon name="flame" /></span>
-          <strong>7</strong><b>Week streak</b><small>Personal best</small>
+          <strong>{averageWorkoutsPerWeek}</strong><b>Workouts / week</b><small>8-week average</small>
         </article>
       </div>
 
       <div className="progress-detail-grid">
         <article className="panel consistency-panel">
           <div className="panel-heading">
-            <div><p className="eyebrow">LAST 8 WEEKS</p><h3>Workout consistency</h3></div>
-            <label className="metric-select-label">
-              <span className="sr-only">Choose progress metric</span>
-              <select aria-label="Choose progress metric" onChange={(event) => setMetric(event.target.value)} value={metric}>
-                {Object.keys(progressMetrics).map((option) => <option key={option}>{option}</option>)}
-              </select>
-            </label>
+            <div><p className="eyebrow">LAST {period} WEEKS</p><h3>Workout consistency</h3></div>
+            <div className="progress-controls">
+              <label className="metric-select-label">
+                <span className="sr-only">Choose progress metric</span>
+                <select aria-label="Choose progress metric" onChange={(event) => setMetric(event.target.value)} value={metric}>
+                  {Object.keys(progressMetrics).map((option) => <option key={option}>{option}</option>)}
+                </select>
+              </label>
+              <label className="metric-select-label">
+                <span className="sr-only">Choose chart period</span>
+                <select aria-label="Choose chart period" onChange={(event) => setPeriod(Number(event.target.value))} value={period}>
+                  <option value={4}>4 weeks</option>
+                  <option value={8}>8 weeks</option>
+                </select>
+              </label>
+            </div>
           </div>
-          <svg className="consistency-chart" viewBox="0 0 700 145" preserveAspectRatio="none" role="img" aria-label={`${metric} trend for the last eight weeks`}>
-            <path d={`${activeMetric.path} L688 130 L12 130 Z`} className="consistency-area" />
-            <path d={activeMetric.path} className="consistency-line" />
+          <div className="progress-period-summary" aria-live="polite">
+            <strong>{periodTotal.toLocaleString()} {activeMetric.unit}</strong>
+            <span>{weeklyAverage.toLocaleString()} {activeMetric.unit} per week on average</span>
+          </div>
+          <svg className="consistency-chart" viewBox="0 0 700 145" preserveAspectRatio="none" role="img" aria-label={`${metric} per week for the last ${period} weeks`}>
+            <path d={`${chartPath} L688 130 L12 130 Z`} className="consistency-area" />
+            <path d={chartPath} className="consistency-line" />
           </svg>
-          <div className="consistency-axis">{activeMetric.values.map((_, index) => <span key={index}>W{index + 1}</span>)}</div>
+          <div className="consistency-axis">{visibleValues.map((_, index) => <span key={index}>W{index + 1}</span>)}</div>
         </article>
 
         <article className="panel muscle-panel">

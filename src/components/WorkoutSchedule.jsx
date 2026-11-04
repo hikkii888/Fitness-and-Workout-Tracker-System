@@ -17,6 +17,22 @@ function shiftDate(date, amount) {
   return shifted;
 }
 
+function getCurrentWeekStart(date) {
+  const normalizedDate = new Date(date);
+  normalizedDate.setHours(12, 0, 0, 0);
+  return shiftDate(normalizedDate, -((normalizedDate.getDay() + 6) % 7));
+}
+
+function getCurrentDayIndex(date) {
+  return (date.getDay() + 6) % 7;
+}
+
+function isSameDate(first, second) {
+  return first.getFullYear() === second.getFullYear()
+    && first.getMonth() === second.getMonth()
+    && first.getDate() === second.getDate();
+}
+
 function formatWeekRange(startDate) {
   const endDate = shiftDate(startDate, 6);
   const startLabel = startDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
@@ -27,8 +43,11 @@ function formatWeekRange(startDate) {
 }
 
 function WorkoutSchedule({ onViewWorkout }) {
-  const [weekStart, setWeekStart] = useState(new Date(2023, 5, 12, 12));
-  const [selectedDay, setSelectedDay] = useState(4);
+  const [today] = useState(() => new Date());
+  const [weekStart, setWeekStart] = useState(() => getCurrentWeekStart(today));
+  const [selectedDay, setSelectedDay] = useState(() => getCurrentDayIndex(today));
+  const currentWeekStart = getCurrentWeekStart(today);
+  const isCurrentWeek = isSameDate(weekStart, currentWeekStart);
   const selectedWorkout = weeklySchedule[selectedDay];
 
   return (
@@ -45,6 +64,16 @@ function WorkoutSchedule({ onViewWorkout }) {
         <div>
           <p className="eyebrow">YOUR SCHEDULE</p>
           <h2>{formatWeekRange(weekStart)}</h2>
+          <button
+            className="schedule-today-button"
+            onClick={() => {
+              setWeekStart(getCurrentWeekStart(today));
+              setSelectedDay(getCurrentDayIndex(today));
+            }}
+            type="button"
+          >
+            {isCurrentWeek ? 'Jump to today' : 'Back to this week'}
+          </button>
         </div>
         <button
           aria-label="Next week"
@@ -61,15 +90,18 @@ function WorkoutSchedule({ onViewWorkout }) {
           const date = shiftDate(weekStart, index);
           const dayDate = date.toLocaleDateString('en-US', { day: 'numeric' });
           const isSelected = selectedDay === index;
+          const isToday = isSameDate(date, today);
           return (
             <button
               aria-pressed={isSelected}
-              className={`schedule-day ${isSelected ? 'is-selected' : ''}`}
+              aria-label={`${workout.weekday}, ${date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}${isToday ? ', today' : ''}: ${workout.name}, ${workout.status}`}
+              className={`schedule-day ${isSelected ? 'is-selected' : ''} ${isToday ? 'is-today' : ''}`}
               key={workout.weekday}
               onClick={() => setSelectedDay(index)}
               type="button"
             >
               <span className="schedule-day-name">{workout.weekday.slice(0, 3).toUpperCase()}</span>
+              {isToday && <span className="schedule-today-label">TODAY</span>}
               <strong className="schedule-date">{dayDate}</strong>
               <span className={`schedule-day-icon ${workout.status === 'Recovery' ? 'is-rest' : ''}`}>
                 <Icon name={workout.icon} />
