@@ -1,15 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Icon from './Icon';
-
-const exercises = [
-  { name: 'Bodyweight Squat', instruction: 'Keep your chest lifted and knees tracking over your toes.', reps: 10 },
-  { name: 'Incline Push-up', instruction: 'Keep your body in a straight line as you lower your chest toward the bench.', reps: 8 },
-  { name: 'Glute Bridge', instruction: 'Press through your heels and squeeze your glutes at the top.', reps: 12 },
-  { name: 'Bird Dog', instruction: 'Reach opposite arm and leg long while keeping your hips level.', reps: 10 },
-  { name: 'Reverse Lunge', instruction: 'Step back softly and keep your front knee stacked over your ankle.', reps: 8 },
-  { name: 'Dumbbell Row', instruction: 'Pull your elbow toward your hip without rounding your back.', reps: 10 },
-  { name: 'Plank Hold', instruction: 'Brace your core and keep a long, steady line from head to heels.', reps: 30, unit: 'sec' },
-];
 
 function formatTime(totalSeconds) {
   const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
@@ -28,15 +18,17 @@ function ExerciseFigure() {
   );
 }
 
-function ActiveWorkout({ onFinish }) {
+function ActiveWorkout({ exercises: exerciseCatalog, onFinish, workoutName }) {
+  const exercises = useMemo(() => exerciseCatalog.map((exercise) => ({
+    ...exercise,
+    reps: Number(exercise.reps.match(/\d+/)?.[0]) || 10,
+    unit: /\bsec\b/i.test(exercise.reps) ? 'sec' : 'reps',
+  })), [exerciseCatalog]);
   const [exerciseIndex, setExerciseIndex] = useState(0);
-  const [elapsedSeconds, setElapsedSeconds] = useState(402);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [showGuide, setShowGuide] = useState(false);
-  const [sets, setSets] = useState(() => exercises.map((exercise, index) => (
-    Array.from({ length: 3 }, (_, setIndex) => ({
-      completed: index === 0 && setIndex < 2,
-      reps: index === 0 && setIndex < 2 ? exercise.reps : 0,
-    }))
+  const [sets, setSets] = useState(() => exercises.map((exercise) => (
+    Array.from({ length: exercise.sets }, () => ({ completed: false, reps: exercise.reps }))
   )));
 
   useEffect(() => {
@@ -55,12 +47,23 @@ function ActiveWorkout({ onFinish }) {
 
   const finishExercise = () => {
     if (exerciseIndex === exercises.length - 1) {
-      onFinish();
+      onFinish({
+        name: workoutName,
+        duration: Math.max(1, Math.ceil(elapsedSeconds / 60)),
+        exercises: exercises.map((workoutExercise, index) => ({
+          name: workoutExercise.name,
+          sets: sets[index],
+        })),
+      });
       return;
     }
     setExerciseIndex((index) => index + 1);
     setShowGuide(false);
   };
+
+  if (exercises.length === 0) {
+    return <p className="api-error" role="alert">Exercise catalog is unavailable. Please return to the exercise library and try again.</p>;
+  }
 
   return (
     <section className="active-workout-screen" aria-label="Active workout and exercise logging">

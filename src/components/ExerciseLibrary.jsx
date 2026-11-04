@@ -1,16 +1,7 @@
 import { useMemo, useState } from 'react';
 import Icon from './Icon';
 
-const exercises = [
-  { id: 'squat', name: 'Bodyweight Squat', category: 'Lower body', level: 'Beginner', sets: 3, reps: '10 reps' },
-  { id: 'push-up', name: 'Incline Push-up', category: 'Upper body', level: 'Beginner', sets: 3, reps: '8 reps' },
-  { id: 'bridge', name: 'Glute Bridge', category: 'Lower body', level: 'Beginner', sets: 3, reps: '12 reps' },
-  { id: 'bird-dog', name: 'Bird Dog', category: 'Core', level: 'Beginner', sets: 2, reps: '10 / side' },
-  { id: 'lunge', name: 'Reverse Lunge', category: 'Lower body', level: 'Intermediate', sets: 3, reps: '8 / side' },
-  { id: 'plank', name: 'Plank Hold', category: 'Core', level: 'Intermediate', sets: 3, reps: '30 sec' },
-];
-
-const categories = ['All exercises', 'Lower body', 'Upper body', 'Core'];
+const categories = ['All exercises', 'Lower body', 'Upper body', 'Core', 'Cardio'];
 
 function ExerciseFigure() {
   return (
@@ -23,11 +14,9 @@ function ExerciseFigure() {
   );
 }
 
-function ExerciseLibrary({ onAddToPlan }) {
+function ExerciseLibrary({ exercises, loading, onToggleFavorite, onTogglePlanExercise }) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All exercises');
-  const [favorites, setFavorites] = useState([]);
-  const [addedExercises, setAddedExercises] = useState([]);
 
   const filteredExercises = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -36,23 +25,7 @@ function ExerciseLibrary({ onAddToPlan }) {
       const matchesCategory = category === 'All exercises' || exercise.category === category;
       return matchesSearch && matchesCategory;
     });
-  }, [category, search]);
-
-  const toggleFavorite = (id) => {
-    setFavorites((current) => current.includes(id)
-      ? current.filter((favorite) => favorite !== id)
-      : [...current, id]);
-  };
-
-  const togglePlanExercise = (exercise) => {
-    const isAdded = addedExercises.includes(exercise.id);
-    setAddedExercises((current) => isAdded
-      ? current.filter((id) => id !== exercise.id)
-      : [...current, exercise.id]);
-    onAddToPlan(isAdded
-      ? `${exercise.name} removed from your plan.`
-      : `${exercise.name} added to your plan.`);
-  };
+  }, [category, exercises, search]);
 
   return (
     <section className="screen-stack library-screen" aria-label="Exercise library and recommendations">
@@ -83,11 +56,13 @@ function ExerciseLibrary({ onAddToPlan }) {
         </label>
       </div>
 
-      {filteredExercises.length > 0 ? (
+      {loading ? (
+        <p className="history-loading" role="status">Loading exercise library…</p>
+      ) : filteredExercises.length > 0 ? (
         <div className="exercise-grid">
           {filteredExercises.map((exercise) => {
-            const isFavorite = favorites.includes(exercise.id);
-            const isAdded = addedExercises.includes(exercise.id);
+            const isFavorite = exercise.isFavorite;
+            const isAdded = exercise.isAdded;
             return (
               <article className="exercise-card" key={exercise.id}>
                 <div className="exercise-card-art">
@@ -96,7 +71,7 @@ function ExerciseLibrary({ onAddToPlan }) {
                     aria-label={`${isFavorite ? 'Remove' : 'Add'} ${exercise.name} ${isFavorite ? 'from' : 'to'} favorites`}
                     aria-pressed={isFavorite}
                     className={`favorite-button ${isFavorite ? 'is-favorite' : ''}`}
-                    onClick={() => toggleFavorite(exercise.id)}
+                    onClick={() => onToggleFavorite(exercise)}
                     type="button"
                   >
                     <Icon name="heart" />
@@ -112,7 +87,7 @@ function ExerciseLibrary({ onAddToPlan }) {
                   <button
                     aria-pressed={isAdded}
                     className={`add-exercise-button ${isAdded ? 'is-added' : ''}`}
-                    onClick={() => togglePlanExercise(exercise)}
+                    onClick={() => onTogglePlanExercise(exercise)}
                     type="button"
                   >
                     <Icon name={isAdded ? 'check' : 'plus'} />

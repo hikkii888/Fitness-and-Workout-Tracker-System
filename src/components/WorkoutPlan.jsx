@@ -25,7 +25,7 @@ const workouts = [
   },
 ];
 
-function WorkoutPlan({ onBrowseExercises, onStartWorkout }) {
+function WorkoutPlan({ onBrowseExercises, onStartWorkout, planExercises = [] }) {
   const [expandedWorkout, setExpandedWorkout] = useState(null);
 
   return (
@@ -62,7 +62,7 @@ function WorkoutPlan({ onBrowseExercises, onStartWorkout }) {
                   <span>{workout.exercises}</span>
                 </div>
                 {!workout.completed && (
-                  <button className="primary-button plan-start-button" onClick={onStartWorkout} type="button">
+                  <button className="primary-button plan-start-button" onClick={() => onStartWorkout(workout.name)} type="button">
                     Start workout
                   </button>
                 )}
@@ -85,6 +85,23 @@ function WorkoutPlan({ onBrowseExercises, onStartWorkout }) {
           );
         })}
       </div>
+
+      {planExercises.length > 0 && (
+        <section className="saved-plan-exercises" aria-labelledby="saved-plan-title">
+          <div className="plan-section-heading">
+            <h2 id="saved-plan-title">Exercises you added</h2>
+            <span>{planExercises.length} saved</span>
+          </div>
+          <ul>
+            {planExercises.map((exercise) => (
+              <li key={exercise.id}>
+                <span><strong>{exercise.name}</strong><small>{exercise.category} · {exercise.level}</small></span>
+                <span>{exercise.sets} sets · {exercise.reps}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <button className="text-link plan-browse-link" onClick={onBrowseExercises} type="button">
         Explore the exercise library <Icon name="arrow" />

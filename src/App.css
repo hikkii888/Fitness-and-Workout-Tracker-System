@@ -2132,6 +2132,86 @@
   font-size: 12px;
 }
 
+.progress-empty,
+.balance-caption,
+.history-loading {
+  color: #78877f;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.progress-empty {
+  margin: 12px 0 0;
+}
+
+.balance-caption {
+  margin: 7px 0 0;
+}
+
+.api-error {
+  background: #fff1ed;
+  border: 1px solid #f1c8bd;
+  border-radius: 9px;
+  color: #8d4033;
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.app-api-error {
+  margin-bottom: 14px;
+}
+
+.history-loading {
+  margin: 12px 0;
+}
+
+.saved-plan-exercises {
+  background: #fff;
+  border: 1px solid #e3e9e3;
+  border-radius: 13px;
+  padding: 16px;
+}
+
+.saved-plan-exercises .plan-section-heading {
+  margin-bottom: 12px;
+}
+
+.saved-plan-exercises ul {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.saved-plan-exercises li {
+  align-items: center;
+  border-top: 1px solid #edf0eb;
+  color: #78877f;
+  display: flex;
+  font-size: 10px;
+  gap: 12px;
+  justify-content: space-between;
+  padding-top: 9px;
+}
+
+.saved-plan-exercises li > span:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.saved-plan-exercises li strong {
+  color: #294239;
+  font-size: 11px;
+}
+
+.saved-plan-exercises li small {
+  color: #829087;
+  font-size: 9px;
+}
+
 .muscle-panel > .eyebrow {
   margin-bottom: 7px;
 }

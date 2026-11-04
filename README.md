@@ -1,16 +1,95 @@
-# React + Vite
+# Form — Fitness & Workout Tracker
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A React and Vite fitness tracker with a local Express API and SQLite database. Exercise favorites, planned exercises, completed sessions, workout feedback, history, and progress statistics persist in SQLite.
 
-Currently, two official plugins are available:
+## Requirements
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js 22.13 or newer
+- npm
 
-## React Compiler
+## Run locally
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```sh
+npm ci
+npm run dev
+```
 
-## Expanding the Oxlint configuration
+Open the Vite URL printed in the terminal (normally `http://localhost:5173`). The development command starts both the Vite frontend and the API on `http://127.0.0.1:3001`; Vite proxies `/api` requests to the API.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+The SQLite file is created automatically at `data/fitness.sqlite` and is ignored by Git. To use another database file, set `DATABASE_PATH` before starting the API:
+
+```sh
+DATABASE_PATH=/path/to/fitness.sqlite npm run api
+```
+
+For a production-style local run:
+
+```sh
+npm run build
+npm start
+```
+
+The Express server serves the built frontend when `dist/` exists. Set `PORT` to change the API/server port.
+
+## API
+
+All endpoints are under `/api`. Successful list requests return JSON arrays; validation errors return a JSON `error` message and an appropriate HTTP status.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/health` | Check API and database availability |
+| `GET` | `/api/exercises?search=squat&category=Lower%20body&level=Beginner` | Search/filter the exercise catalog |
+| `GET` | `/api/exercises/:exerciseId` | Get one exercise |
+| `POST` / `PUT` / `DELETE` | `/api/exercises` or `/api/exercises/:exerciseId` | Create, update, or remove an exercise |
+| `PUT` / `DELETE` | `/api/favorites/:exerciseId` | Add or remove an exercise favorite |
+| `GET` | `/api/plan/exercises` | List exercises saved to the plan |
+| `PUT` / `DELETE` | `/api/plan/exercises/:exerciseId` | Add or remove a planned exercise |
+| `GET` | `/api/workouts` | List completed workout sessions and logged sets |
+| `POST` | `/api/workouts` | Save a completed session and feedback |
+| `PUT` / `DELETE` | `/api/workouts/:id` | Edit or delete a saved session |
+| `GET` | `/api/progress` | Weekly workout, minute, and completed-rep totals |
+| `GET` | `/api/progress/balance` | Logged exercise volume grouped by category |
+
+Example request to save a workout:
+
+```json
+{
+  "name": "Full Body Foundation",
+  "duration": 28,
+  "difficulty": "just-right",
+  "feltPain": false,
+  "exercises": [
+    {
+      "name": "Bodyweight Squat",
+      "sets": [
+        { "completed": true, "reps": 10 },
+        { "completed": true, "reps": 10 }
+      ]
+    }
+  ]
+}
+```
+
+Example request to add a catalog exercise:
+
+```json
+{
+  "id": "step-up",
+  "name": "Step-up",
+  "category": "Lower body",
+  "level": "Beginner",
+  "sets": 3,
+  "reps": "8 / side",
+  "instruction": "Plant your whole foot on a stable step and drive through your front heel."
+}
+```
+
+The current app is a local, single-user application: it has no login, cloud database, or multi-user access control. Back up `data/fitness.sqlite` to preserve local workout data.
+
+## Checks
+
+```sh
+npm test
+npm run lint
+npm run build
+```
