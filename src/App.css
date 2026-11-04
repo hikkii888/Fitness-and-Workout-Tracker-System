@@ -2053,6 +2053,12 @@
   margin: 0 0 6px;
 }
 
+.progress-controls {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
 .metric-select-label select {
   appearance: none;
   background: #f5f7f3;
@@ -2110,6 +2116,20 @@
   font-size: 9px;
   justify-content: space-between;
   margin-top: 8px;
+}
+
+.progress-period-summary {
+  align-items: baseline;
+  color: #78877f;
+  display: flex;
+  font-size: 9px;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.progress-period-summary strong {
+  color: #315945;
+  font-size: 12px;
 }
 
 .muscle-panel > .eyebrow {
@@ -2174,6 +2194,22 @@
   margin: 0;
 }
 
+.schedule-today-button {
+  background: none;
+  border: 0;
+  color: #34704f;
+  cursor: pointer;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  margin-top: 7px;
+  padding: 2px 5px;
+}
+
+.schedule-today-button:hover {
+  text-decoration: underline;
+}
+
 .week-nav-button {
   align-items: center;
   background: #f2f6f1;
@@ -2216,11 +2252,23 @@
   box-shadow: 0 0 0 1px #4e896b;
 }
 
+.schedule-day.is-today:not(.is-selected) {
+  border-color: #8ebc74;
+}
+
 .schedule-day-name {
   color: #7c8981;
   font-size: 8px;
   font-weight: 750;
   letter-spacing: .5px;
+}
+
+.schedule-today-label {
+  color: #34704f;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .4px;
+  line-height: 1;
 }
 
 .schedule-date {
@@ -2343,6 +2391,7 @@
 
 .week-nav-button:focus-visible,
 .schedule-day:focus-visible,
+.schedule-today-button:focus-visible,
 .metric-select-label select:focus-visible,
 .schedule-view-button:focus-visible {
   outline: 3px solid #a7cd63;
@@ -2364,6 +2413,44 @@
 }
 
 @media (max-width: 720px) {
+  .progress-metric-grid {
+    gap: 9px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .progress-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .consistency-panel .panel-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .progress-controls {
+    flex-wrap: wrap;
+  }
+
+  .schedule-week-header {
+    gap: 10px;
+    padding: 13px 10px;
+  }
+
+  .schedule-week-header h2 {
+    font-size: 15px;
+  }
+
+  .schedule-days {
+    display: flex;
+    overflow-x: auto;
+    padding: 2px 2px 8px;
+  }
+
+  .schedule-day {
+    flex: 0 0 68px;
+  }
+
   .history-intro {
     align-items: flex-end;
     flex-direction: row;
