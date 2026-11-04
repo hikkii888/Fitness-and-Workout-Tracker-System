@@ -68,7 +68,7 @@ function HomeDashboard({ onContinue, onOpenPlan = onContinue, onOpenProgress = o
           <span className="streak-pill"><Icon name="flame" /> {currentStreak} day streak</span>
           <h2>Good morning, Jamie.</h2>
           <p>You’re building a stronger routine. Let’s keep the momentum going.</p>
-          <button className="primary-button" type="button" onClick={onContinue}>
+          <button className="primary-button" type="button" onClick={() => onContinue()}>
             Start today’s workout <Icon name="arrow" />
           </button>
         </div>
@@ -96,7 +96,7 @@ function HomeDashboard({ onContinue, onOpenPlan = onContinue, onOpenProgress = o
               <h3>Full Body Foundation</h3>
               <p>7 beginner-friendly exercises</p>
             </div>
-            <button className="play-button" type="button" onClick={onContinue} aria-label="Start Full Body Foundation">
+            <button className="play-button" type="button" onClick={() => onContinue()} aria-label="Start Full Body Foundation">
               <Icon name="play" />
             </button>
           </article>

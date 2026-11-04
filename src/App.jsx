@@ -359,8 +359,8 @@ function App() {
     setCurrentScreen('feedback');
   };
 
-  const beginWorkout = (name = 'Full Body Foundation') => {
-    setActiveWorkoutName(name);
+  const beginWorkout = (name) => {
+    setActiveWorkoutName(typeof name === 'string' && name.trim() ? name : 'Full Body Foundation');
     setCurrentScreen('workout');
   };
 
