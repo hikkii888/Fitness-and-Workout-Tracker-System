@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Icon from './Icon';
 import { apiRequest } from '../api';
+import { getNextPlannedSession, getSessionExercises, normalizeFitnessProfile } from '../workoutPlan';
 
 const weekdayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -8,7 +9,13 @@ function localDateKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-function HomeDashboard({ onContinue, onOpenPlan = onContinue, onOpenProgress = onContinue }) {
+function HomeDashboard({
+  fitnessProfile,
+  workoutPlan,
+  onContinue,
+  onOpenPlan = onContinue,
+  onOpenProgress = onContinue,
+}) {
   const [today] = useState(() => new Date());
   const [workouts, setWorkouts] = useState([]);
   const [loadError, setLoadError] = useState('');
@@ -44,6 +51,21 @@ function HomeDashboard({ onContinue, onOpenPlan = onContinue, onOpenProgress = o
   const maxDailyMinutes = Math.max(...weeklyActivity.map(({ minutes }) => minutes), 1);
   const activeMinutes = weeklyActivity.reduce((total, day) => total + day.minutes, 0);
   const weeklyWorkouts = workouts.filter((workout) => weeklyActivity.some((day) => day.date === workout.date.slice(0, 10))).length;
+  const profile = normalizeFitnessProfile(fitnessProfile);
+  const planMatchesProfile = Boolean(
+    workoutPlan
+    && profile
+    && workoutPlan.profile.goal === profile.goal
+    && workoutPlan.profile.days === profile.days
+    && workoutPlan.profile.experience === profile.experience,
+  );
+  const nextPlanned = planMatchesProfile
+    ? getNextPlannedSession(workoutPlan.sessions, workouts, today)
+    : null;
+  const nextWorkout = nextPlanned?.session || null;
+  const isNextWorkoutToday = nextPlanned?.date === todayKey;
+  const noSessionsRemainingThisWeek = planMatchesProfile && !nextWorkout;
+  const workoutTarget = Number(profile?.days?.match(/\d/)?.[0]) || 4;
   const currentStreak = (() => {
     const workoutDates = new Set(workouts.map((workout) => workout.date.slice(0, 10)));
     const streakDate = new Date(today);
@@ -55,7 +77,7 @@ function HomeDashboard({ onContinue, onOpenPlan = onContinue, onOpenProgress = o
     }
     return streak;
   })();
-  const goalProgress = Math.min(100, Math.round((weeklyWorkouts / 4) * 100));
+  const goalProgress = Math.min(100, Math.round((weeklyWorkouts / workoutTarget) * 100));
   const activityTrend = previousWeekMinutes
     ? `${Math.round(((activeMinutes - previousWeekMinutes) / previousWeekMinutes) * 100)}% from last week`
     : activeMinutes ? 'First activity this week' : 'No activity yet';
@@ -67,9 +89,19 @@ function HomeDashboard({ onContinue, onOpenPlan = onContinue, onOpenProgress = o
         <div className="welcome-copy">
           <span className="streak-pill"><Icon name="flame" /> {currentStreak} day streak</span>
           <h2>Good morning, Jamie.</h2>
-          <p>You’re building a stronger routine. Let’s keep the momentum going.</p>
-          <button className="primary-button" type="button" onClick={() => onContinue()}>
-            Start today’s workout <Icon name="arrow" />
+          <p>{noSessionsRemainingThisWeek
+            ? 'There are no more scheduled sessions this week. Your plan will be ready again next week.'
+            : profile ? `Your ${profile.goal.toLowerCase()} plan is ready. Keep building a consistent routine.` : 'You’re building a stronger routine. Let’s keep the momentum going.'}</p>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => nextWorkout
+              ? onContinue(nextWorkout.name, getSessionExercises(nextWorkout))
+              : onOpenPlan()}
+          >
+            {nextWorkout
+              ? isNextWorkoutToday ? 'Start today’s workout' : 'Start next workout'
+              : noSessionsRemainingThisWeek ? 'View this week’s plan' : 'Set up your workout plan'} <Icon name="arrow" />
           </button>
         </div>
         <div className="welcome-art" aria-hidden="true">
@@ -92,11 +124,28 @@ function HomeDashboard({ onContinue, onOpenPlan = onContinue, onOpenProgress = o
           <article className="metric-card workout-card">
             <span className="metric-icon mint-icon"><Icon name="bolt" /></span>
             <div className="metric-content">
-              <p className="eyebrow">UP NEXT · 28 MIN</p>
-              <h3>Full Body Foundation</h3>
-              <p>7 beginner-friendly exercises</p>
+              <p className="eyebrow">
+                {nextWorkout
+                  ? `${isNextWorkoutToday ? 'TODAY' : `UP NEXT · ${nextWorkout.day.toUpperCase()}`} · ABOUT ${Math.max(20, nextWorkout.exercises.length * 5)} MIN`
+                  : noSessionsRemainingThisWeek ? 'THIS WEEK' : 'PLAN NEEDED'}
+              </p>
+              <h3>{nextWorkout?.name || (noSessionsRemainingThisWeek ? 'No more sessions this week' : 'No workout scheduled')}</h3>
+              <p>{nextWorkout
+                ? `${nextWorkout.exercises.length} ExerciseAPI exercises plus warm-up and cool-down`
+                : noSessionsRemainingThisWeek
+                  ? `${weeklyWorkouts} workout${weeklyWorkouts === 1 ? '' : 's'} completed this week.`
+                  : 'Create your personalized plan to see your next session.'}</p>
             </div>
-            <button className="play-button" type="button" onClick={() => onContinue()} aria-label="Start Full Body Foundation">
+            <button
+              className="play-button"
+              type="button"
+              onClick={() => nextWorkout
+                ? onContinue(nextWorkout.name, getSessionExercises(nextWorkout))
+                : onOpenPlan()}
+              aria-label={nextWorkout
+                ? `Start ${nextWorkout.name}`
+                : noSessionsRemainingThisWeek ? 'View this week’s plan' : 'Set up your workout plan'}
+            >
               <Icon name="play" />
             </button>
           </article>
@@ -112,7 +161,7 @@ function HomeDashboard({ onContinue, onOpenPlan = onContinue, onOpenProgress = o
             <span className="metric-icon lilac-icon"><Icon name="calendar" /></span>
             <div className="metric-content metric-progress">
               <p className="eyebrow">WEEKLY GOAL</p>
-              <div className="metric-number">{weeklyWorkouts} <span>/ 4 workouts</span></div>
+              <div className="metric-number">{weeklyWorkouts} <span>/ {workoutTarget} workouts</span></div>
               <div className="progress-track"><span style={{ width: `${goalProgress}%` }} /></div>
             </div>
           </article>
@@ -140,7 +189,7 @@ function HomeDashboard({ onContinue, onOpenPlan = onContinue, onOpenProgress = o
             <div><p className="eyebrow">PROGRESS</p><h3>Goal check-in</h3></div>
             <div className="goal-ring" aria-label={`${goalProgress} percent complete`}><span>{goalProgress}<small>%</small></span></div>
           </div>
-          <p className="goal-caption">{weeklyWorkouts} of 4 planned workouts completed this week.</p>
+          <p className="goal-caption">{weeklyWorkouts} of {workoutTarget} planned workouts completed this week.</p>
           <div className="progress-track goal-track"><span style={{ width: `${goalProgress}%` }} /></div>
           <button className="text-link" type="button" onClick={onOpenProgress}>See my progress <Icon name="arrow" /></button>
         </article>

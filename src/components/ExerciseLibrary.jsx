@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import Icon from './Icon';
+import ExerciseApiLibrary from './ExerciseApiLibrary';
 
 const categories = ['All exercises', 'Lower body', 'Upper body', 'Core', 'Cardio'];
 
@@ -14,7 +15,7 @@ function ExerciseFigure() {
   );
 }
 
-function ExerciseLibrary({ exercises, loading, onToggleFavorite, onTogglePlanExercise }) {
+function LocalExerciseLibrary({ exercises, loading, onToggleFavorite, onTogglePlanExercise }) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All exercises');
 
@@ -105,6 +106,57 @@ function ExerciseLibrary({ exercises, loading, onToggleFavorite, onTogglePlanExe
           <p>Try a different search or category.</p>
           <button className="text-link" onClick={() => { setSearch(''); setCategory('All exercises'); }} type="button">Clear filters</button>
         </div>
+      )}
+    </section>
+  );
+}
+
+function ExerciseLibrary({
+  exercises,
+  fitnessProfile,
+  loading,
+  onAddExternalExercise,
+  onRemovePlanExercise,
+  onToggleFavorite,
+  onTogglePlanExercise,
+  planExercises,
+}) {
+  const [catalogSource, setCatalogSource] = useState('external');
+
+  return (
+    <section className="screen-stack library-screen" aria-label="Exercise library">
+      <div className="exercise-source-tabs" aria-label="Choose exercise catalog" role="group">
+        <button
+          aria-pressed={catalogSource === 'external'}
+          className={catalogSource === 'external' ? 'is-selected' : ''}
+          onClick={() => setCatalogSource('external')}
+          type="button"
+        >
+          Explore ExerciseAPI.dev
+        </button>
+        <button
+          aria-pressed={catalogSource === 'local'}
+          className={catalogSource === 'local' ? 'is-selected' : ''}
+          onClick={() => setCatalogSource('local')}
+          type="button"
+        >
+          My local catalog
+        </button>
+      </div>
+      {catalogSource === 'external' ? (
+        <ExerciseApiLibrary
+          goalProfile={fitnessProfile}
+          onAddToPlan={onAddExternalExercise}
+          onRemovePlanExercise={onRemovePlanExercise}
+          planExercises={planExercises}
+        />
+      ) : (
+        <LocalExerciseLibrary
+          exercises={exercises}
+          loading={loading}
+          onToggleFavorite={onToggleFavorite}
+          onTogglePlanExercise={onTogglePlanExercise}
+        />
       )}
     </section>
   );

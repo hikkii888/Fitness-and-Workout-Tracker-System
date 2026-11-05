@@ -1,16 +1,9 @@
 import { useEffect, useState } from 'react';
 import Icon from './Icon';
 import { apiRequest, toExerciseNames } from '../api';
+import { getTrainingDays, normalizeFitnessProfile } from '../workoutPlan';
 
-const weeklySchedule = [
-  { weekday: 'Monday', category: 'Full body', name: 'Full Body Foundation', status: 'Scheduled', icon: 'bolt', detail: '7 exercises · 28 minutes · No equipment' },
-  { weekday: 'Tuesday', category: 'Rest day', name: 'Recovery day', status: 'Recovery', icon: 'clock', detail: 'Take a rest and let your body recover.' },
-  { weekday: 'Wednesday', category: 'Core', name: 'Core & Stability', status: 'Scheduled', icon: 'bolt', detail: '7 exercises · 30 minutes · No equipment' },
-  { weekday: 'Thursday', category: 'Rest day', name: 'Recovery day', status: 'Recovery', icon: 'clock', detail: 'Take a rest and let your body recover.' },
-  { weekday: 'Friday', category: 'Lower body', name: 'Lower Body Basics', status: 'Scheduled', icon: 'bolt', detail: '8 exercises · 32 minutes · No equipment' },
-  { weekday: 'Saturday', category: 'Walk', name: 'Easy outdoor walk', status: 'Scheduled', icon: 'bolt', detail: '1 activity · 25 minutes · Easy pace' },
-  { weekday: 'Sunday', category: 'Rest day', name: 'Recovery day', status: 'Recovery', icon: 'clock', detail: 'Take a rest and get ready for next week.' },
-];
+const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 function shiftDate(date, amount) {
   const shifted = new Date(date);
@@ -47,7 +40,7 @@ function formatWeekRange(startDate) {
   return `${startLabel}–${endLabel}`;
 }
 
-function WorkoutSchedule({ onViewWorkout }) {
+function WorkoutSchedule({ fitnessProfile, workoutPlan, onSetFitnessGoal, onViewWorkout }) {
   const [today] = useState(() => new Date());
   const [weekStart, setWeekStart] = useState(() => getCurrentWeekStart(today));
   const [selectedDay, setSelectedDay] = useState(() => getCurrentDayIndex(today));
@@ -55,6 +48,52 @@ function WorkoutSchedule({ onViewWorkout }) {
   const [error, setError] = useState('');
   const currentWeekStart = getCurrentWeekStart(today);
   const isCurrentWeek = isSameDate(weekStart, currentWeekStart);
+  const profile = normalizeFitnessProfile(fitnessProfile);
+  const trainingDays = getTrainingDays(profile?.days);
+  const planMatchesProfile = Boolean(
+    workoutPlan
+    && profile
+    && workoutPlan.profile.goal === profile.goal
+    && workoutPlan.profile.days === profile.days
+    && workoutPlan.profile.experience === profile.experience,
+  );
+  const weeklySchedule = weekdays.map((weekday) => {
+    const session = planMatchesProfile
+      ? workoutPlan.sessions.find((item) => item.day === weekday)
+      : null;
+    if (session) {
+      return {
+        weekday,
+        category: session.focus,
+        name: session.name,
+        status: 'Scheduled',
+        icon: 'bolt',
+        detail: `${session.exercises.length} exercises plus warm-up and cool-down · about ${Math.max(20, session.exercises.length * 5)} minutes`,
+        exercises: [...session.warmup, ...session.exercises, ...session.cooldown],
+      };
+    }
+
+    if (!trainingDays.includes(weekday)) {
+      return {
+        weekday,
+        category: 'Rest day',
+        name: 'Recovery day',
+        status: 'Recovery',
+        icon: 'clock',
+        detail: 'Take a rest and let your body recover.',
+        exercises: [],
+      };
+    }
+    return {
+      weekday,
+      category: 'Workout setup',
+      name: 'Plan not generated',
+      status: 'Setup',
+      icon: 'bolt',
+      detail: 'Complete your fitness goal preferences to generate this workout.',
+      exercises: [],
+    };
+  });
 
   useEffect(() => {
     apiRequest('/workouts')
@@ -71,6 +110,7 @@ function WorkoutSchedule({ onViewWorkout }) {
       name: selectedSession.name,
       status: 'Completed',
       detail: `${toExerciseNames(selectedSession.exercises).length} exercises · ${selectedSession.duration} minutes · Saved workout`,
+      exercises: selectedSession.exercises,
     }
     : selectedTemplate;
 
@@ -116,15 +156,15 @@ function WorkoutSchedule({ onViewWorkout }) {
           const dayDate = date.toLocaleDateString('en-US', { day: 'numeric' });
           const isSelected = selectedDay === index;
           const isToday = isSameDate(date, today);
-          const completed = workouts.some((workout) => workout.date.slice(0, 10) === dateKey(date));
-          const status = workout.status === 'Recovery'
-            ? 'Recovery'
-            : completed
-              ? 'Completed'
+          const completed = workouts.some((savedWorkout) => savedWorkout.date.slice(0, 10) === dateKey(date));
+          const status = completed
+            ? 'Completed'
+            : workout.status === 'Recovery'
+              ? 'Recovery'
               : date < new Date(today.getFullYear(), today.getMonth(), today.getDate())
                 ? 'Missed'
-                : 'Scheduled';
-          const icon = status === 'Completed' ? 'check' : workout.status === 'Recovery' ? 'clock' : 'bolt';
+                : workout.status;
+          const icon = status === 'Completed' ? 'check' : status === 'Recovery' ? 'clock' : 'bolt';
           return (
             <button
               aria-pressed={isSelected}
@@ -160,8 +200,13 @@ function WorkoutSchedule({ onViewWorkout }) {
           <p>{selectedWorkout.detail}</p>
         </div>
         {selectedWorkout.status === 'Scheduled' && selectedDate >= new Date(today.getFullYear(), today.getMonth(), today.getDate()) && (
-          <button className="primary-button schedule-view-button" onClick={() => onViewWorkout(selectedWorkout.name)} type="button">
-            View workout
+          <button className="primary-button schedule-view-button" onClick={() => onViewWorkout(selectedWorkout.name, selectedWorkout.exercises)} type="button">
+            Start workout
+          </button>
+        )}
+        {selectedWorkout.status === 'Setup' && (
+          <button className="primary-button schedule-view-button" onClick={onSetFitnessGoal} type="button">
+            Set fitness goal
           </button>
         )}
       </article>

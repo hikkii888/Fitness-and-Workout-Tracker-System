@@ -13,6 +13,7 @@ import {
 const app = express();
 const port = Number(process.env.PORT) || 3001;
 const rootDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const exerciseApiBaseUrl = 'https://api.exerciseapi.dev/v1';
 app.use(express.json({ limit: '100kb' }));
 
 function isNonEmptyString(value, maxLength = 100) {
@@ -23,9 +24,198 @@ function notFound(response, message) {
   return response.status(404).json({ error: message });
 }
 
+function exerciseApiError(response, status, code, message, hint, details = {}) {
+  return response.status(status).json({
+    error: {
+      code,
+      message,
+      hint,
+      docs_url: `https://exerciseapi.dev/docs/errors#${code}`,
+      details,
+    },
+  });
+}
+
+function isValidPlanExercise(exercise, roles) {
+  return Boolean(
+    exercise
+    && isNonEmptyString(exercise.id, 160)
+    && exercise.source === 'ExerciseAPI'
+    && isNonEmptyString(exercise.name)
+    && isNonEmptyString(exercise.category, 60)
+    && isNonEmptyString(exercise.level, 40)
+    && isNonEmptyString(exercise.equipment, 100)
+    && Array.isArray(exercise.primaryMuscles)
+    && exercise.primaryMuscles.length > 0
+    && exercise.primaryMuscles.every((muscle) => isNonEmptyString(muscle, 100))
+    && Array.isArray(exercise.instructions)
+    && exercise.instructions.length > 0
+    && exercise.instructions.length <= 20
+    && exercise.instructions.every((instruction) => isNonEmptyString(instruction, 1000))
+    && Number.isInteger(exercise.sets)
+    && exercise.sets >= 1
+    && exercise.sets <= 10
+    && isNonEmptyString(exercise.reps, 40)
+    && Number.isInteger(exercise.restSeconds)
+    && exercise.restSeconds >= 0
+    && exercise.restSeconds <= 600
+    && roles.includes(exercise.role)
+    && exercise.prescriptionSource === 'Application recommendation'
+    && typeof exercise.completed === 'boolean',
+  );
+}
+
+function isValidGeneratedPlan(plan) {
+  const validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const goals = ['Build Strength', 'Build Muscle', 'Lose Weight', 'Improve Endurance', 'Get Abs', 'Stay Active'];
+  const experienceLevels = ['Beginner', 'Intermediate', 'Advanced'];
+  const trainingDays = Number(plan?.profile?.days?.match(/\d/)?.[0]);
+  return Boolean(
+    plan
+    && typeof plan.generatedAt === 'string'
+    && !Number.isNaN(Date.parse(plan.generatedAt))
+    && goals.includes(plan.profile?.goal)
+    && [2, 3, 4, 5, 6].includes(trainingDays)
+    && plan.profile.days === `${trainingDays} days per week`
+    && experienceLevels.includes(plan.profile?.experience)
+    && Array.isArray(plan.sessions)
+    && plan.sessions.length === trainingDays
+    && plan.sessions.every((session) => (
+      isNonEmptyString(session.id, 80)
+      && validDays.includes(session.day)
+      && isNonEmptyString(session.name, 120)
+      && isNonEmptyString(session.focus, 80)
+      && Array.isArray(session.warmup)
+      && session.warmup.length > 0
+      && session.warmup.every((exercise) => isValidPlanExercise(exercise, ['warm-up']))
+      && Array.isArray(session.exercises)
+      && session.exercises.length >= 3
+      && session.exercises.length <= 8
+      && session.exercises.every((exercise) => isValidPlanExercise(exercise, ['workout']))
+      && Array.isArray(session.cooldown)
+      && session.cooldown.length > 0
+      && session.cooldown.every((exercise) => isValidPlanExercise(exercise, ['cool-down']))
+    ))
+    && Array.isArray(plan.recoveryDays)
+    && plan.recoveryDays.every((day) => validDays.includes(day)),
+  );
+}
+
+async function proxyExerciseApi(request, response, resourcePath) {
+  const apiKey = process.env.EXERCISEAPI_KEY;
+  if (!apiKey) {
+    return exerciseApiError(
+      response,
+      503,
+      'API_NOT_CONFIGURED',
+      'ExerciseAPI.dev is not configured yet.',
+      'Create an API key in the ExerciseAPI.dev dashboard, add EXERCISEAPI_KEY to .env, then restart the app.',
+      { setup_url: 'https://exerciseapi.dev/dashboard' },
+    );
+  }
+
+  const upstreamUrl = new URL(`${exerciseApiBaseUrl}${resourcePath}`);
+  for (const [key, value] of Object.entries(request.query)) {
+    if (typeof value === 'string') upstreamUrl.searchParams.set(key, value);
+  }
+  try {
+    const upstreamResponse = await fetch(upstreamUrl, {
+      headers: { 'X-API-Key': apiKey, Accept: 'application/json' },
+      signal: AbortSignal.timeout(12000),
+    });
+    const body = await upstreamResponse.text();
+    response.status(upstreamResponse.status);
+    for (const header of [
+      'content-type',
+      'retry-after',
+      'x-ratelimit-limit',
+      'x-ratelimit-remaining',
+      'x-ratelimit-reset',
+    ]) {
+      const value = upstreamResponse.headers.get(header);
+      if (value) response.setHeader(header, value);
+    }
+    return response.send(body);
+  } catch (error) {
+    console.error('ExerciseAPI.dev request failed:', error);
+    return exerciseApiError(
+      response,
+      502,
+      'EXTERNAL_API_UNAVAILABLE',
+      'ExerciseAPI.dev could not be reached.',
+      'Check your internet connection and try again in a moment.',
+    );
+  }
+}
+
 app.get('/api/health', (_request, response) => {
   response.json({ status: 'ok', database: 'connected' });
 });
+
+app.get('/api/fitness-goal', (_request, response) => {
+  const profile = database.prepare(`
+    SELECT goal, days, experience
+    FROM fitness_profile
+    WHERE id = 1
+  `).get();
+  response.json(profile ?? null);
+});
+
+app.put('/api/fitness-goal', (request, response) => {
+  const { goal, days, experience } = request.body ?? {};
+  const validGoals = ['Build Strength', 'Build Muscle', 'Lose Weight', 'Improve Endurance', 'Get Abs', 'Stay Active'];
+  const validTrainingDays = [2, 3, 4, 5, 6].map((count) => `${count} days per week`);
+  const validExperienceLevels = ['Beginner', 'Intermediate', 'Advanced'];
+  if (!validGoals.includes(goal) || !validTrainingDays.includes(days) || !validExperienceLevels.includes(experience)) {
+    return response.status(400).json({ error: 'Provide a valid fitness goal, training frequency, and experience level.' });
+  }
+  database.prepare(`
+    INSERT INTO fitness_profile (id, goal, days, experience, updated_at)
+    VALUES (1, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(id) DO UPDATE SET
+      goal = excluded.goal,
+      days = excluded.days,
+      experience = excluded.experience,
+      updated_at = CURRENT_TIMESTAMP
+  `).run(goal, days, experience);
+  return response.json({ goal, days, experience });
+});
+
+app.get('/api/workout-plan', (_request, response) => {
+  const savedPlan = database.prepare('SELECT plan_json FROM generated_workout_plan WHERE id = 1').get();
+  return response.json(savedPlan ? JSON.parse(savedPlan.plan_json) : null);
+});
+
+app.put('/api/workout-plan', (request, response) => {
+  const plan = request.body;
+  if (!isValidGeneratedPlan(plan)) {
+    return response.status(400).json({
+      error: 'Provide a complete generated plan with valid ExerciseAPI exercises, prescriptions, sessions, and recovery days.',
+    });
+  }
+  database.prepare(`
+    INSERT INTO generated_workout_plan (id, plan_json, updated_at)
+    VALUES (1, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(id) DO UPDATE SET
+      plan_json = excluded.plan_json,
+      updated_at = CURRENT_TIMESTAMP
+  `).run(JSON.stringify(plan));
+  return response.json(plan);
+});
+
+app.get('/api/exercise-api/status', (_request, response) => {
+  response.json({ configured: Boolean(process.env.EXERCISEAPI_KEY) });
+});
+
+app.get('/api/exercise-api/exercises', (request, response) => proxyExerciseApi(request, response, '/exercises'));
+
+app.get('/api/exercise-api/exercises/:exerciseId', (request, response) => {
+  return proxyExerciseApi(request, response, `/exercises/${encodeURIComponent(request.params.exerciseId)}`);
+});
+
+app.get('/api/exercise-api/categories', (request, response) => proxyExerciseApi(request, response, '/categories'));
+
+app.get('/api/exercise-api/muscles', (request, response) => proxyExerciseApi(request, response, '/muscles'));
 
 app.get('/api/exercises', (request, response) => {
   const search = typeof request.query.search === 'string' ? request.query.search.trim().slice(0, 100) : '';
@@ -110,6 +300,57 @@ app.put('/api/plan/exercises/:exerciseId', (request, response) => {
   if (!exercise) return notFound(response, 'Exercise not found.');
   database.prepare('INSERT OR IGNORE INTO plan_exercises (exercise_id) VALUES (?)').run(exercise.id);
   return response.status(204).end();
+});
+
+app.post('/api/plan/external-exercises', (request, response) => {
+  const {
+    externalId,
+    name,
+    category,
+    level,
+    equipment = 'No equipment',
+    instruction,
+  } = request.body ?? {};
+  if (!isNonEmptyString(externalId, 160)
+    || !isNonEmptyString(name)
+    || !isNonEmptyString(category, 60)
+    || !isNonEmptyString(level, 40)
+    || !isNonEmptyString(equipment, 100)
+    || !isNonEmptyString(instruction, 500)) {
+    return response.status(400).json({
+      error: 'Provide a valid external exercise id, name, category, level, equipment, and instruction.',
+    });
+  }
+
+  const externalExerciseId = `exerciseapi:${externalId.trim()}`;
+  const saved = database.transaction(() => {
+    let exercise = database.prepare('SELECT id FROM exercises WHERE id = ?').get(externalExerciseId);
+    if (!exercise) {
+      exercise = database.prepare('SELECT id FROM exercises WHERE name = ?').get(name.trim());
+    }
+    if (!exercise) {
+      database.prepare(`
+        INSERT INTO exercises (id, name, category, level, sets, reps, instruction, equipment)
+        VALUES (?, ?, ?, ?, 3, '10 reps', ?, ?)
+      `).run(
+        externalExerciseId,
+        name.trim(),
+        category.trim(),
+        level.trim(),
+        instruction.trim(),
+        equipment.trim(),
+      );
+      exercise = { id: externalExerciseId };
+    }
+
+    const planResult = database.prepare(
+      'INSERT OR IGNORE INTO plan_exercises (exercise_id) VALUES (?)',
+    ).run(exercise.id);
+    const storedExercise = listExercises().find((item) => item.id === exercise.id);
+    return { exercise: storedExercise, added: planResult.changes > 0 };
+  })();
+
+  return response.status(saved.added ? 201 : 200).json(saved.exercise);
 });
 
 app.delete('/api/plan/exercises/:exerciseId', (request, response) => {

@@ -30,6 +30,20 @@ database.exec(`
     added_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS fitness_profile (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    goal TEXT NOT NULL,
+    days TEXT NOT NULL,
+    experience TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS generated_workout_plan (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    plan_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS workout_sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -50,6 +64,25 @@ database.exec(`
 
   CREATE INDEX IF NOT EXISTS workout_sessions_date_idx ON workout_sessions(date);
   CREATE INDEX IF NOT EXISTS session_exercises_session_idx ON session_exercises(session_id);
+`);
+
+database.exec(`
+  UPDATE fitness_profile
+  SET goal = CASE goal
+    WHEN 'Build strength' THEN 'Build Strength'
+    WHEN 'Improve fitness' THEN 'Improve Endurance'
+    WHEN 'Lose weight' THEN 'Lose Weight'
+    WHEN 'Stay active' THEN 'Stay Active'
+    ELSE goal
+  END,
+  experience = CASE experience
+    WHEN 'I''m just starting out' THEN 'Beginner'
+    WHEN 'I have some experience' THEN 'Intermediate'
+    WHEN 'I am experienced' THEN 'Advanced'
+    ELSE experience
+  END
+  WHERE goal IN ('Build strength', 'Improve fitness', 'Lose weight', 'Stay active')
+    OR experience IN ('I''m just starting out', 'I have some experience', 'I am experienced');
 `);
 
 const seedExercises = [

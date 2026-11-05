@@ -4,9 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n API,WEB \"node --watch server/index.js\" \"vite\"",
-    "api": "node server/index.js",
-    "start": "node server/index.js",
+    "dev": "concurrently -k -n API,WEB \"node --env-file-if-exists=.env --watch server/index.js\" \"vite\"",
+    "api": "node --env-file-if-exists=.env server/index.js",
+    "start": "node --env-file-if-exists=.env server/index.js",
     "build": "vite build",
     "lint": "oxlint",
     "test": "node --test",

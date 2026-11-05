@@ -44,6 +44,7 @@ before(async () => {
     env: {
       ...process.env,
       DATABASE_PATH: join(temporaryDirectory, 'test.sqlite'),
+      EXERCISEAPI_KEY: '',
       PORT: String(port),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -62,12 +63,135 @@ after(async () => {
 });
 
 test('exercise, plan, workout, and progress API workflows persist correctly', async (context) => {
+  await context.test('reports missing ExerciseAPI.dev configuration without exposing credentials', async () => {
+    const status = await (await fetch(`${apiUrl}/exercise-api/status`)).json();
+    assert.equal(status.configured, false);
+
+    const response = await fetch(`${apiUrl}/exercise-api/exercises?q=bench&limit=1`);
+    assert.equal(response.status, 503);
+    const body = await response.json();
+    assert.equal(body.error.code, 'API_NOT_CONFIGURED');
+    assert.ok(body.error.hint.includes('EXERCISEAPI_KEY'));
+    assert.equal(body.error.details.setup_url, 'https://exerciseapi.dev/dashboard');
+  });
+
   await context.test('filters the seeded exercise catalog', async () => {
     const response = await fetch(`${apiUrl}/exercises?category=Core`);
     assert.equal(response.status, 200);
     const exercises = await response.json();
     assert.ok(exercises.length >= 3);
     assert.ok(exercises.every((exercise) => exercise.category === 'Core'));
+  });
+
+  await context.test('persists fitness goal preferences for recommendations', async () => {
+    assert.equal(await (await fetch(`${apiUrl}/fitness-goal`)).json(), null);
+    const profile = {
+      goal: 'Improve Endurance',
+      days: '6 days per week',
+      experience: 'Intermediate',
+    };
+    const saveResponse = await fetch(`${apiUrl}/fitness-goal`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profile),
+    });
+    assert.equal(saveResponse.status, 200);
+    assert.deepEqual(await saveResponse.json(), profile);
+    assert.deepEqual(await (await fetch(`${apiUrl}/fitness-goal`)).json(), profile);
+
+    const invalidResponse = await fetch(`${apiUrl}/fitness-goal`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...profile, goal: 'Run faster' }),
+    });
+    assert.equal(invalidResponse.status, 400);
+  });
+
+  await context.test('persists a validated generated workout plan', async () => {
+    assert.equal(await (await fetch(`${apiUrl}/workout-plan`)).json(), null);
+    const plannedExercise = {
+      id: 'API_Test_Squat',
+      source: 'ExerciseAPI',
+      name: 'API Test Squat',
+      category: 'strength',
+      level: 'beginner',
+      equipment: 'body only',
+      primaryMuscles: ['quadriceps'],
+      secondaryMuscles: [],
+      instructions: ['Squat with control.'],
+      overview: 'A catalog exercise.',
+      sets: 3,
+      reps: '10 reps',
+      restSeconds: 60,
+      role: 'workout',
+      completed: false,
+      prescriptionSource: 'Application recommendation',
+    };
+    const recoveryExercise = {
+      ...plannedExercise,
+      id: 'API_Test_Mobility',
+      name: 'API Test Mobility',
+      category: 'mobility',
+      role: 'warm-up',
+      reps: '30 sec',
+      sets: 1,
+      restSeconds: 15,
+    };
+    const cooldownExercise = {
+      ...recoveryExercise,
+      id: 'API_Test_Stretch',
+      name: 'API Test Stretch',
+      category: 'stretching',
+      role: 'cool-down',
+    };
+    const plan = {
+      profile: {
+        goal: 'Build Strength',
+        days: '2 days per week',
+        experience: 'Beginner',
+      },
+      generatedAt: new Date().toISOString(),
+      recoveryDays: ['Tuesday', 'Wednesday', 'Friday', 'Saturday', 'Sunday'],
+      sessions: ['Monday', 'Thursday'].map((day, index) => ({
+        id: `session-${index + 1}`,
+        day,
+        name: `Strength · Full Body ${index + 1}`,
+        focus: `Full Body ${index + 1}`,
+        warmup: [recoveryExercise],
+        exercises: [
+          plannedExercise,
+          { ...plannedExercise, id: `API_Test_Squat_${index}`, name: `API Test Squat ${index}` },
+          { ...plannedExercise, id: `API_Test_Press_${index}`, name: `API Test Press ${index}` },
+        ],
+        cooldown: [cooldownExercise],
+      })),
+    };
+    const saveResponse = await fetch(`${apiUrl}/workout-plan`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(plan),
+    });
+    assert.equal(saveResponse.status, 200);
+    assert.deepEqual(await saveResponse.json(), plan);
+    assert.deepEqual(await (await fetch(`${apiUrl}/workout-plan`)).json(), plan);
+
+    const updatedPlan = structuredClone(plan);
+    updatedPlan.sessions[0].exercises[0].completed = true;
+    const updateResponse = await fetch(`${apiUrl}/workout-plan`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedPlan),
+    });
+    assert.equal(updateResponse.status, 200);
+    const persistedPlan = await (await fetch(`${apiUrl}/workout-plan`)).json();
+    assert.equal(persistedPlan.sessions[0].exercises[0].completed, true);
+
+    const invalidResponse = await fetch(`${apiUrl}/workout-plan`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...updatedPlan, sessions: [] }),
+    });
+    assert.equal(invalidResponse.status, 400);
   });
 
   await context.test('creates, reads, updates, and deletes catalog exercises', async () => {
@@ -115,6 +239,49 @@ test('exercise, plan, workout, and progress API workflows persist correctly', as
 
     await fetch(`${apiUrl}/favorites/squat`, { method: 'DELETE' });
     await fetch(`${apiUrl}/plan/exercises/squat`, { method: 'DELETE' });
+  });
+
+  await context.test('adds an ExerciseAPI.dev exercise to the persistent workout plan', async () => {
+    const externalExercise = {
+      externalId: 'API_Test_External_Squat',
+      name: 'API Test External Squat',
+      category: 'strength',
+      level: 'beginner',
+      equipment: 'body only',
+      instruction: 'Keep your chest lifted and squat with control.',
+    };
+    const response = await fetch(`${apiUrl}/plan/external-exercises`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(externalExercise),
+    });
+    assert.equal(response.status, 201);
+    const savedExercise = await response.json();
+    assert.equal(savedExercise.id, 'exerciseapi:API_Test_External_Squat');
+    assert.equal(savedExercise.isAdded, true);
+
+    const plannedExercises = await (await fetch(`${apiUrl}/plan/exercises`)).json();
+    assert.ok(plannedExercises.some((exercise) => exercise.id === savedExercise.id));
+
+    const duplicateResponse = await fetch(`${apiUrl}/plan/external-exercises`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(externalExercise),
+    });
+    assert.equal(duplicateResponse.status, 200);
+
+    await fetch(`${apiUrl}/plan/exercises/${encodeURIComponent(savedExercise.id)}`, { method: 'DELETE' });
+    await fetch(`${apiUrl}/exercises/${encodeURIComponent(savedExercise.id)}`, { method: 'DELETE' });
+  });
+
+  await context.test('rejects invalid external exercises before saving them', async () => {
+    const response = await fetch(`${apiUrl}/plan/external-exercises`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ externalId: 'missing-fields' }),
+    });
+    assert.equal(response.status, 400);
+    assert.ok((await response.json()).error);
   });
 
   await context.test('creates, updates, summarizes, and deletes workout sessions', async () => {
