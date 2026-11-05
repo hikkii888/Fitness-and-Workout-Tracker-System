@@ -1,15 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { exerciseApiRequest } from '../api';
 import Icon from './Icon';
-
-const exercises = [
-  { name: 'Bodyweight Squat', instruction: 'Keep your chest lifted and knees tracking over your toes.', reps: 10 },
-  { name: 'Incline Push-up', instruction: 'Keep your body in a straight line as you lower your chest toward the bench.', reps: 8 },
-  { name: 'Glute Bridge', instruction: 'Press through your heels and squeeze your glutes at the top.', reps: 12 },
-  { name: 'Bird Dog', instruction: 'Reach opposite arm and leg long while keeping your hips level.', reps: 10 },
-  { name: 'Reverse Lunge', instruction: 'Step back softly and keep your front knee stacked over your ankle.', reps: 8 },
-  { name: 'Dumbbell Row', instruction: 'Pull your elbow toward your hip without rounding your back.', reps: 10 },
-  { name: 'Plank Hold', instruction: 'Brace your core and keep a long, steady line from head to heels.', reps: 30, unit: 'sec' },
-];
 
 function formatTime(totalSeconds) {
   const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
@@ -28,23 +19,73 @@ function ExerciseFigure() {
   );
 }
 
-function ActiveWorkout({ onFinish }) {
+function ActiveWorkout({ exercises: exerciseCatalog, initiallyComplete = false, onFinish, onWorkoutComplete, workoutName }) {
+  const exercises = useMemo(() => exerciseCatalog.map((exercise) => ({
+    ...exercise,
+    reps: Number(exercise.reps.match(/\d+/)?.[0]) || 10,
+    unit: /\bsec\b/i.test(exercise.reps) ? 'sec' : 'reps',
+  })), [exerciseCatalog]);
   const [exerciseIndex, setExerciseIndex] = useState(0);
-  const [elapsedSeconds, setElapsedSeconds] = useState(402);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [showGuide, setShowGuide] = useState(false);
-  const [sets, setSets] = useState(() => exercises.map((exercise, index) => (
-    Array.from({ length: 3 }, (_, setIndex) => ({
-      completed: index === 0 && setIndex < 2,
-      reps: index === 0 && setIndex < 2 ? exercise.reps : 0,
-    }))
+  const [completedExercises, setCompletedExercises] = useState(() => exercises.map(() => false));
+  const [workoutComplete, setWorkoutComplete] = useState(initiallyComplete);
+  const [exerciseMedia, setExerciseMedia] = useState({ exerciseId: '', loading: false, videoUrl: '', error: '' });
+  const [sets, setSets] = useState(() => exercises.map((exercise) => (
+    Array.from({ length: exercise.sets }, () => ({ completed: false, reps: exercise.reps }))
   )));
 
   useEffect(() => {
+    if (workoutComplete) return undefined;
     const timerId = window.setInterval(() => setElapsedSeconds((seconds) => seconds + 1), 1000);
     return () => window.clearInterval(timerId);
-  }, []);
+  }, [workoutComplete]);
 
   const exercise = exercises[exerciseIndex];
+  const externalExerciseId = exercise?.id?.startsWith('exerciseapi:')
+    ? exercise.id.slice('exerciseapi:'.length)
+    : '';
+
+  useEffect(() => {
+    if (!externalExerciseId) return undefined;
+
+    let active = true;
+    exerciseApiRequest(`/exercises/${encodeURIComponent(externalExerciseId)}`)
+      .then((response) => {
+        if (!response?.data || !Array.isArray(response.data.videos)) {
+          throw new Error('The exercise video information was not returned by ExerciseAPI.dev.');
+        }
+        const videoUrl = response.data.videos
+          .map((video) => video?.url)
+          .find((url) => typeof url === 'string' && /^https:\/\//i.test(url)) || '';
+        if (active) setExerciseMedia({ exerciseId: externalExerciseId, loading: false, videoUrl, error: '' });
+      })
+      .catch((error) => {
+        if (active) {
+          setExerciseMedia({
+            exerciseId: externalExerciseId,
+            loading: false,
+            videoUrl: '',
+            error: error.message || 'The exercise video could not be loaded.',
+          });
+        }
+      });
+
+    return () => { active = false; };
+  }, [externalExerciseId]);
+
+  const currentExerciseMedia = exerciseMedia.exerciseId === externalExerciseId
+    ? exerciseMedia
+    : { loading: Boolean(externalExerciseId), videoUrl: '', error: '' };
+  const workoutSummary = () => ({
+    name: workoutName,
+    duration: Math.max(1, Math.ceil(elapsedSeconds / 60)),
+    exercises: exercises.map((workoutExercise, index) => ({
+      name: workoutExercise.name,
+      sets: sets[index],
+    })),
+  });
+
   const updateSet = (setIndex, update) => {
     setSets((current) => current.map((exerciseSets, index) => (
       index === exerciseIndex
@@ -54,21 +95,71 @@ function ActiveWorkout({ onFinish }) {
   };
 
   const finishExercise = () => {
-    if (exerciseIndex === exercises.length - 1) {
-      onFinish();
+    const updatedCompleted = completedExercises.map((completed, index) => index === exerciseIndex || completed);
+    setCompletedExercises(updatedCompleted);
+    const nextExerciseIndex = Array.from({ length: exercises.length }, (_, index) => (
+      (exerciseIndex + index + 1) % exercises.length
+    )).find((index) => !updatedCompleted[index]);
+
+    if (nextExerciseIndex === undefined) {
+      setWorkoutComplete(true);
+      onWorkoutComplete();
       return;
     }
-    setExerciseIndex((index) => index + 1);
+    setExerciseIndex(nextExerciseIndex);
     setShowGuide(false);
   };
+
+  if (exercises.length === 0) {
+    return <p className="api-error" role="alert">Exercise catalog is unavailable. Please return to the exercise library and try again.</p>;
+  }
+
+  if (workoutComplete) {
+    return (
+      <section className="workout-complete-screen" aria-label="Workout complete">
+        <span className="workout-complete-icon"><Icon name="check" /></span>
+        <p className="eyebrow">WORKOUT COMPLETE</p>
+        <h2>No more active workout</h2>
+        <p>You completed all {exercises.length} exercises in {workoutName}. Continue to feedback to save this workout to your progress.</p>
+        <button className="primary-button" onClick={() => onFinish(workoutSummary())} type="button">
+          Continue to workout feedback
+          <Icon name="arrow" />
+        </button>
+      </section>
+    );
+  }
 
   return (
     <section className="active-workout-screen" aria-label="Active workout and exercise logging">
       <div className="active-exercise-heading">
         <div>
-          <span className="exercise-step">EXERCISE {exerciseIndex + 1} OF {exercises.length}</span>
+          <label className="active-exercise-picker">
+            <span className="exercise-step">CHOOSE EXERCISE · {completedExercises.filter(Boolean).length} OF {exercises.length} COMPLETE</span>
+            <select
+              aria-label="Choose active exercise"
+              onChange={(event) => {
+                setExerciseIndex(Number(event.target.value));
+                setShowGuide(false);
+              }}
+              value={exerciseIndex}
+            >
+              {exercises.map((item, index) => (
+                <option key={item.id || `${item.name}-${index}`} value={index}>
+                  {completedExercises[index] ? '✓ ' : ''}{item.name}{completedExercises[index] ? ' · Completed' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
           <h2>{exercise.name}</h2>
           <p>{exercise.instruction}</p>
+          {exercise.source === 'ExerciseAPI' && (
+            <dl className="active-exercise-metadata">
+              <div><dt>Target muscles</dt><dd>{exercise.primaryMuscles.join(', ')}</dd></div>
+              <div><dt>Equipment</dt><dd>{exercise.equipment}</dd></div>
+              <div><dt>Difficulty</dt><dd>{exercise.level}</dd></div>
+              <div><dt>Rest</dt><dd>{exercise.restSeconds} sec between sets</dd></div>
+            </dl>
+          )}
         </div>
         <div className="workout-timer" aria-label={`Workout time ${formatTime(elapsedSeconds)}`}>
           <Icon name="clock" /> <span>{formatTime(elapsedSeconds)}</span>
@@ -77,23 +168,45 @@ function ActiveWorkout({ onFinish }) {
 
       <div className="active-workout-grid">
         <section className="exercise-demo" aria-label={`${exercise.name} form guide`}>
-          <ExerciseFigure />
-          {showGuide && (
-            <div className="form-guide">
-              <p className="eyebrow">FORM TIP</p>
-              <strong>Move with control</strong>
-              <span>{exercise.instruction}</span>
-            </div>
+          {currentExerciseMedia.videoUrl ? (
+            <video
+              aria-label={`${exercise.name} exercise demonstration`}
+              className="active-exercise-video"
+              controls
+              playsInline
+              preload="metadata"
+              src={currentExerciseMedia.videoUrl}
+            >
+              Your browser does not support embedded videos.
+            </video>
+          ) : (
+            <>
+              <ExerciseFigure />
+              {showGuide && (
+                <div className="form-guide">
+                  <p className="eyebrow">FORM TIP</p>
+                  <strong>Move with control</strong>
+                  <span>{exercise.instruction}</span>
+                </div>
+              )}
+              <button className="form-guide-button" onClick={() => setShowGuide((visible) => !visible)} type="button">
+                <Icon name={showGuide ? 'check' : 'play'} />
+                {showGuide ? 'Hide form guide' : 'Watch form guide'}
+              </button>
+              {currentExerciseMedia.loading && <p className="exercise-video-status" role="status">Loading exercise video…</p>}
+              {!currentExerciseMedia.loading && currentExerciseMedia.error && (
+                <p className="exercise-video-status" role="status">Video unavailable. Showing the form guide instead.</p>
+              )}
+              {!currentExerciseMedia.loading && !currentExerciseMedia.error && externalExerciseId && (
+                <p className="exercise-video-status" role="status">No video demo is available for this exercise. Showing the form guide instead.</p>
+              )}
+            </>
           )}
-          <button className="form-guide-button" onClick={() => setShowGuide((visible) => !visible)} type="button">
-            <Icon name={showGuide ? 'check' : 'play'} />
-            {showGuide ? 'Hide form guide' : 'Watch form guide'}
-          </button>
         </section>
 
         <section className="set-logger" aria-labelledby="set-logger-title">
           <h3 id="set-logger-title">Log your sets</h3>
-          <p className="set-target">Target: 3 sets × {exercise.reps} {exercise.unit || 'reps'}</p>
+          <p className="set-target">Target: {exercise.sets} sets × {exercise.reps} {exercise.unit || 'reps'}</p>
           <div className="set-list">
             {sets[exerciseIndex].map((set, index) => (
               <div className="set-row" key={`${exerciseIndex}-${index}`}>
@@ -126,11 +239,13 @@ function ActiveWorkout({ onFinish }) {
             ))}
           </div>
           <button className="primary-button complete-exercise-button" onClick={finishExercise} type="button">
-            {exerciseIndex === exercises.length - 1 ? 'Finish workout' : 'Complete exercise'}
+            {completedExercises.filter(Boolean).length === exercises.length - 1 && !completedExercises[exerciseIndex]
+              ? 'Complete final exercise'
+              : completedExercises[exerciseIndex] ? 'Complete exercise again' : 'Complete exercise'}
             <Icon name="check" />
           </button>
           <p className="workout-finish-hint">
-            {exerciseIndex === exercises.length - 1 ? 'Ready to wrap up?' : `${exercises.length - exerciseIndex - 1} exercises remaining`}
+            {exercises.length - completedExercises.filter(Boolean).length} exercises remaining
           </p>
         </section>
       </div>

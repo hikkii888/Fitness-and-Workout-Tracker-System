@@ -1,49 +1,65 @@
 import { useState } from 'react';
+import { EXPERIENCE_LEVELS, FITNESS_GOALS, normalizeFitnessProfile } from '../workoutPlan';
 import Icon from './Icon';
 
-const goals = [
-  { id: 'Build strength', description: 'Feel stronger in everyday movements', icon: 'bolt' },
-  { id: 'Improve fitness', description: 'Boost energy and cardiovascular health', icon: 'heart' },
-  { id: 'Lose weight', description: 'Create healthy, sustainable habits', icon: 'flame' },
-  { id: 'Stay active', description: 'Move consistently and feel your best', icon: 'star' },
-];
+const goalDescriptions = {
+  'Build Strength': 'Build strength for everyday movements',
+  'Build Muscle': 'Develop muscle with progressive resistance',
+  'Lose Weight': 'Support sustainable activity and energy use',
+  'Improve Endurance': 'Build cardiovascular and muscular endurance',
+  'Get Abs': 'Focus training on the core muscles',
+  'Stay Active': 'Move consistently and support mobility',
+};
 
-const daysOptions = ['2 days per week', '3 days per week', '4 days per week', '5 days per week'];
-const experienceOptions = ["I'm just starting out", 'I have some experience', 'I am experienced'];
+const goalIcons = {
+  'Build Strength': 'bolt',
+  'Build Muscle': 'bolt',
+  'Lose Weight': 'flame',
+  'Improve Endurance': 'heart',
+  'Get Abs': 'target',
+  'Stay Active': 'star',
+};
 
-function FitnessGoalSelection({ onBack, onComplete }) {
-  const [selectedGoal, setSelectedGoal] = useState('Build strength');
-  const [daysPerWeek, setDaysPerWeek] = useState('3 days per week');
-  const [experienceLevel, setExperienceLevel] = useState("I'm just starting out");
+function FitnessGoalSelection({ onBack, onComplete, initialProfile }) {
+  const normalizedInitialProfile = normalizeFitnessProfile(initialProfile);
+  const [selectedGoal, setSelectedGoal] = useState(normalizedInitialProfile?.goal || 'Build Strength');
+  const [daysPerWeek, setDaysPerWeek] = useState(normalizedInitialProfile?.days || '3 days per week');
+  const [experienceLevel, setExperienceLevel] = useState(normalizedInitialProfile?.experience || 'Beginner');
+  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    onComplete({ goal: selectedGoal, days: daysPerWeek, experience: experienceLevel });
+    setSaving(true);
+    try {
+      await onComplete({ goal: selectedGoal, days: daysPerWeek, experience: experienceLevel });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="goal-page">
       <form className="goal-card" onSubmit={handleSubmit}>
         <button className="mobile-back-link" type="button" onClick={onBack}>← Home</button>
-        <p className="eyebrow">STEP 1 OF 3</p>
+        <p className="eyebrow">PERSONALIZE YOUR WORKOUT RECOMMENDATIONS</p>
         <h2>What would you like to focus on?</h2>
         <p className="goal-intro">Choose one primary goal. You can always change this later.</p>
 
         <div className="goal-options" role="group" aria-label="Choose your primary fitness goal">
-          {goals.map((goal) => {
-            const isSelected = selectedGoal === goal.id;
+          {FITNESS_GOALS.map((goal) => {
+            const isSelected = selectedGoal === goal;
             return (
               <button
                 aria-pressed={isSelected}
                 className={`goal-option ${isSelected ? 'is-selected' : ''}`}
-                key={goal.id}
-                onClick={() => setSelectedGoal(goal.id)}
+                key={goal}
+                onClick={() => setSelectedGoal(goal)}
                 type="button"
               >
-                <span className="goal-icon"><Icon name={goal.icon} /></span>
+                <span className="goal-icon"><Icon name={goalIcons[goal]} /></span>
                 <span className="goal-option-copy">
-                  <strong>{goal.id}</strong>
-                  <small>{goal.description}</small>
+                  <strong>{goal}</strong>
+                  <small>{goalDescriptions[goal]}</small>
                 </span>
                 <span className={`selection-indicator ${isSelected ? 'is-checked' : ''}`}>
                   {isSelected && <Icon name="check" />}
@@ -57,19 +73,21 @@ function FitnessGoalSelection({ onBack, onComplete }) {
           <label>
             <span>How many days can you train?</span>
             <select value={daysPerWeek} onChange={(event) => setDaysPerWeek(event.target.value)}>
-              {daysOptions.map((option) => <option key={option}>{option}</option>)}
+              {[2, 3, 4, 5, 6].map((days) => (
+                <option key={days}>{`${days} days per week`}</option>
+              ))}
             </select>
           </label>
           <label>
             <span>Experience level</span>
             <select value={experienceLevel} onChange={(event) => setExperienceLevel(event.target.value)}>
-              {experienceOptions.map((option) => <option key={option}>{option}</option>)}
+              {EXPERIENCE_LEVELS.map((option) => <option key={option}>{option}</option>)}
             </select>
           </label>
         </div>
 
-        <button className="primary-button build-button" type="submit">
-          Build my plan <Icon name="arrow" />
+        <button className="primary-button build-button" disabled={saving} type="submit">
+          {saving ? 'Building your workout plan…' : 'Generate my workout plan'} <Icon name="arrow" />
         </button>
         <button className="desktop-back-link" type="button" onClick={onBack}>Back to home</button>
       </form>

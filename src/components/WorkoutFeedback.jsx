@@ -11,10 +11,17 @@ const difficultyOptions = [
 function WorkoutFeedback({ onSaved }) {
   const [difficulty, setDifficulty] = useState('just-right');
   const [feltPain, setFeltPain] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    onSaved({ difficulty, feltPain });
+    if (saving) return;
+    setSaving(true);
+    try {
+      await onSaved({ difficulty, feltPain });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -53,7 +60,9 @@ function WorkoutFeedback({ onSaved }) {
           </span>
         </label>
 
-        <button className="primary-button save-feedback-button" type="submit">Save feedback</button>
+        <button className="primary-button save-feedback-button" disabled={saving} type="submit">
+          {saving ? 'Saving workout…' : 'Save feedback'}
+        </button>
       </form>
     </section>
   );

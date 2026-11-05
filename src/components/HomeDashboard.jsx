@@ -1,25 +1,107 @@
+import { useEffect, useState } from 'react';
 import Icon from './Icon';
+import { apiRequest } from '../api';
+import { getNextPlannedSession, getSessionExercises, normalizeFitnessProfile } from '../workoutPlan';
 
-const weeklyActivity = [
-  { day: 'M', height: 48 },
-  { day: 'T', height: 74 },
-  { day: 'W', height: 34 },
-  { day: 'T', height: 90, active: true },
-  { day: 'F', height: 60 },
-  { day: 'S', height: 18 },
-  { day: 'S', height: 10 },
-];
+const weekdayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-function HomeDashboard({ onContinue, onOpenPlan = onContinue, onOpenProgress = onContinue }) {
+function localDateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function HomeDashboard({
+  fitnessProfile,
+  workoutPlan,
+  onContinue,
+  onOpenPlan = onContinue,
+  onOpenProgress = onContinue,
+}) {
+  const [today] = useState(() => new Date());
+  const [workouts, setWorkouts] = useState([]);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    apiRequest('/workouts')
+      .then(setWorkouts)
+      .catch((requestError) => setLoadError(requestError.message));
+  }, []);
+
+  const todayKey = localDateKey(today);
+  const weekDays = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(today);
+    date.setHours(12, 0, 0, 0);
+    date.setDate(today.getDate() - ((today.getDay() + 6) % 7) + index);
+    return { date, key: localDateKey(date), day: weekdayLabels[index] };
+  });
+  const previousWeekMinutes = workouts
+    .filter((workout) => {
+      const workoutDate = workout.date.slice(0, 10);
+      const weekStart = weekDays[0].date;
+      const previousWeekStart = new Date(weekStart);
+      previousWeekStart.setDate(previousWeekStart.getDate() - 7);
+      return workoutDate >= localDateKey(previousWeekStart) && workoutDate < weekDays[0].key;
+    })
+    .reduce((total, workout) => total + workout.duration, 0);
+  const weeklyActivity = weekDays.map(({ key, day }) => {
+    const minutes = workouts
+      .filter((workout) => workout.date.slice(0, 10) === key)
+      .reduce((total, workout) => total + workout.duration, 0);
+    return { day, minutes, date: key };
+  });
+  const maxDailyMinutes = Math.max(...weeklyActivity.map(({ minutes }) => minutes), 1);
+  const activeMinutes = weeklyActivity.reduce((total, day) => total + day.minutes, 0);
+  const weeklyWorkouts = workouts.filter((workout) => weeklyActivity.some((day) => day.date === workout.date.slice(0, 10))).length;
+  const profile = normalizeFitnessProfile(fitnessProfile);
+  const planMatchesProfile = Boolean(
+    workoutPlan
+    && profile
+    && workoutPlan.profile.goal === profile.goal
+    && workoutPlan.profile.days === profile.days
+    && workoutPlan.profile.experience === profile.experience,
+  );
+  const nextPlanned = planMatchesProfile
+    ? getNextPlannedSession(workoutPlan.sessions, workouts, today)
+    : null;
+  const nextWorkout = nextPlanned?.session || null;
+  const isNextWorkoutToday = nextPlanned?.date === todayKey;
+  const noSessionsRemainingThisWeek = planMatchesProfile && !nextWorkout;
+  const workoutTarget = Number(profile?.days?.match(/\d/)?.[0]) || 4;
+  const currentStreak = (() => {
+    const workoutDates = new Set(workouts.map((workout) => workout.date.slice(0, 10)));
+    const streakDate = new Date(today);
+    if (!workoutDates.has(todayKey)) streakDate.setDate(streakDate.getDate() - 1);
+    let streak = 0;
+    while (workoutDates.has(localDateKey(streakDate))) {
+      streak += 1;
+      streakDate.setDate(streakDate.getDate() - 1);
+    }
+    return streak;
+  })();
+  const goalProgress = Math.min(100, Math.round((weeklyWorkouts / workoutTarget) * 100));
+  const activityTrend = previousWeekMinutes
+    ? `${Math.round(((activeMinutes - previousWeekMinutes) / previousWeekMinutes) * 100)}% from last week`
+    : activeMinutes ? 'First activity this week' : 'No activity yet';
+
   return (
     <div className="dashboard">
+      {loadError && <p className="api-error" role="alert">{loadError}</p>}
       <section className="welcome-card">
         <div className="welcome-copy">
-          <span className="streak-pill"><Icon name="flame" /> 3 day streak</span>
+          <span className="streak-pill"><Icon name="flame" /> {currentStreak} day streak</span>
           <h2>Good morning, Jamie.</h2>
-          <p>You’re building a stronger routine. Let’s keep the momentum going.</p>
-          <button className="primary-button" type="button" onClick={onContinue}>
-            Start today’s workout <Icon name="arrow" />
+          <p>{noSessionsRemainingThisWeek
+            ? 'There are no more scheduled sessions this week. Your plan will be ready again next week.'
+            : profile ? `Your ${profile.goal.toLowerCase()} plan is ready. Keep building a consistent routine.` : 'You’re building a stronger routine. Let’s keep the momentum going.'}</p>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => nextWorkout
+              ? onContinue(nextWorkout.name, getSessionExercises(nextWorkout))
+              : onOpenPlan()}
+          >
+            {nextWorkout
+              ? isNextWorkoutToday ? 'Start today’s workout' : 'Start next workout'
+              : noSessionsRemainingThisWeek ? 'View this week’s plan' : 'Set up your workout plan'} <Icon name="arrow" />
           </button>
         </div>
         <div className="welcome-art" aria-hidden="true">
@@ -42,11 +124,28 @@ function HomeDashboard({ onContinue, onOpenPlan = onContinue, onOpenProgress = o
           <article className="metric-card workout-card">
             <span className="metric-icon mint-icon"><Icon name="bolt" /></span>
             <div className="metric-content">
-              <p className="eyebrow">UP NEXT · 28 MIN</p>
-              <h3>Full Body Foundation</h3>
-              <p>7 beginner-friendly exercises</p>
+              <p className="eyebrow">
+                {nextWorkout
+                  ? `${isNextWorkoutToday ? 'TODAY' : `UP NEXT · ${nextWorkout.day.toUpperCase()}`} · ABOUT ${Math.max(20, nextWorkout.exercises.length * 5)} MIN`
+                  : noSessionsRemainingThisWeek ? 'THIS WEEK' : 'PLAN NEEDED'}
+              </p>
+              <h3>{nextWorkout?.name || (noSessionsRemainingThisWeek ? 'No more sessions this week' : 'No workout scheduled')}</h3>
+              <p>{nextWorkout
+                ? `${nextWorkout.exercises.length} ExerciseAPI exercises plus warm-up and cool-down`
+                : noSessionsRemainingThisWeek
+                  ? `${weeklyWorkouts} workout${weeklyWorkouts === 1 ? '' : 's'} completed this week.`
+                  : 'Create your personalized plan to see your next session.'}</p>
             </div>
-            <button className="play-button" type="button" onClick={onContinue} aria-label="Start Full Body Foundation">
+            <button
+              className="play-button"
+              type="button"
+              onClick={() => nextWorkout
+                ? onContinue(nextWorkout.name, getSessionExercises(nextWorkout))
+                : onOpenPlan()}
+              aria-label={nextWorkout
+                ? `Start ${nextWorkout.name}`
+                : noSessionsRemainingThisWeek ? 'View this week’s plan' : 'Set up your workout plan'}
+            >
               <Icon name="play" />
             </button>
           </article>
@@ -54,16 +153,16 @@ function HomeDashboard({ onContinue, onOpenPlan = onContinue, onOpenProgress = o
             <span className="metric-icon peach-icon"><Icon name="flame" /></span>
             <div className="metric-content metric-progress">
               <p className="eyebrow">ACTIVE MINUTES</p>
-              <div className="metric-number">86 <span>/ 120</span></div>
-              <div className="progress-track"><span style={{ width: '72%' }} /></div>
+              <div className="metric-number">{activeMinutes} <span>/ 120</span></div>
+              <div className="progress-track"><span style={{ width: `${Math.min(100, Math.round((activeMinutes / 120) * 100))}%` }} /></div>
             </div>
           </article>
           <article className="metric-card">
             <span className="metric-icon lilac-icon"><Icon name="calendar" /></span>
             <div className="metric-content metric-progress">
               <p className="eyebrow">WEEKLY GOAL</p>
-              <div className="metric-number">3 <span>/ 4 workouts</span></div>
-              <div className="progress-track"><span style={{ width: '75%' }} /></div>
+              <div className="metric-number">{weeklyWorkouts} <span>/ {workoutTarget} workouts</span></div>
+              <div className="progress-track"><span style={{ width: `${goalProgress}%` }} /></div>
             </div>
           </article>
         </div>
@@ -73,24 +172,25 @@ function HomeDashboard({ onContinue, onOpenPlan = onContinue, onOpenProgress = o
         <article className="panel activity-panel">
           <div className="panel-heading">
             <div><p className="eyebrow">THIS WEEK</p><h3>Weekly activity</h3></div>
-            <span className="trend-pill">+18% from last week</span>
+            <span className="trend-pill">{activityTrend}</span>
           </div>
-          <div className="activity-chart" role="img" aria-label="Weekly activity: Monday 48, Tuesday 74, Wednesday 34, Thursday 90, Friday 60, Saturday 18, Sunday 10">
-            {weeklyActivity.map(({ day, height, active }, index) => (
-              <div className="chart-column" key={`${day}-${index}`}>
-                <span className={`chart-bar ${active ? 'is-highlighted' : ''}`} style={{ height: `${height}%` }} />
+          <div className="activity-chart" role="img" aria-label={`Weekly workout minutes: ${weeklyActivity.map(({ day, minutes }) => `${day} ${minutes}`).join(', ')}`}>
+            {weeklyActivity.map(({ day, minutes, date }) => (
+              <div className="chart-column" key={date}>
+                <span className={`chart-bar ${date === todayKey ? 'is-highlighted' : ''}`} style={{ height: `${minutes ? Math.max(12, (minutes / maxDailyMinutes) * 100) : 4}%` }} />
                 <span className="chart-day">{day}</span>
               </div>
             ))}
           </div>
+          <p className="activity-summary">{activeMinutes} active minutes · {weeklyWorkouts} workouts this week</p>
         </article>
         <article className="panel goal-panel">
           <div className="panel-heading">
             <div><p className="eyebrow">PROGRESS</p><h3>Goal check-in</h3></div>
-            <div className="goal-ring" aria-label="68 percent complete"><span>68<small>%</small></span></div>
+            <div className="goal-ring" aria-label={`${goalProgress} percent complete`}><span>{goalProgress}<small>%</small></span></div>
           </div>
-          <p className="goal-caption">You’re more than halfway to your 8-week strength goal.</p>
-          <div className="progress-track goal-track"><span style={{ width: '68%' }} /></div>
+          <p className="goal-caption">{weeklyWorkouts} of {workoutTarget} planned workouts completed this week.</p>
+          <div className="progress-track goal-track"><span style={{ width: `${goalProgress}%` }} /></div>
           <button className="text-link" type="button" onClick={onOpenProgress}>See my progress <Icon name="arrow" /></button>
         </article>
       </section>

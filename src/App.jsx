@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { apiRequest, toExerciseNames } from './api';
+import { fetchWorkoutExerciseCandidates } from './exerciseApiService';
 import ActiveWorkout from './components/ActiveWorkout';
 import Achievements from './components/Achievements';
 import FitnessGoalSelection from './components/FitnessGoalSelection';
@@ -8,13 +10,9 @@ import Icon from './components/Icon';
 import WorkoutSchedule from './components/WorkoutSchedule';
 import WorkoutPlan from './components/WorkoutPlan';
 import WorkoutFeedback from './components/WorkoutFeedback';
+import { createWorkoutPlan } from './workoutPlan';
 
-const workoutRecords = [
-  { id: 1, date: '2026-06-14', name: 'Core & Stability', exercises: ['Dead bug', 'Bird dog', 'Knee plank'], duration: 24, status: 'Completed' },
-  { id: 2, date: '2026-06-12', name: 'Full Body Foundation', exercises: ['Goblet squat', 'Incline push-up', 'Dumbbell row'], duration: 28, status: 'Completed' },
-  { id: 3, date: '2026-06-09', name: 'Lower Body Basics', exercises: ['Bodyweight squat', 'Glute bridge', 'Calf raise'], duration: 31, status: 'Completed' },
-  { id: 4, date: '2026-06-07', name: 'Upper Body Starter', exercises: ['Wall push-up', 'Dumbbell row', 'Shoulder press'], duration: 22, status: 'Modified' },
-];
+const progressMetricOptions = ['Workouts', 'Active minutes', 'Total reps'];
 
 const navigation = [
   { id: 'home', label: 'Home', icon: 'home' },
@@ -30,46 +28,51 @@ const navigation = [
 ];
 
 function formatWorkoutDate(date) {
-  return new Date(`${date}T12:00:00`).toLocaleDateString('en-US', {
+  const parsedDate = date.length === 10 ? new Date(`${date}T12:00:00`) : new Date(date);
+  return parsedDate.toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
   });
 }
 
-const progressMetrics = {
-  Workouts: {
-    values: [2, 3, 2, 4, 3, 4, 3, 5],
-    unit: 'workouts',
-  },
-  'Active minutes': {
-    values: [95, 112, 104, 145, 128, 168, 152, 196],
-    unit: 'minutes',
-  },
-  'Total reps': {
-    values: [280, 340, 315, 420, 390, 480, 455, 560],
-    unit: 'reps',
-  },
-};
-
-const totalWorkouts = progressMetrics.Workouts.values.reduce((total, value) => total + value, 0);
-const totalActiveMinutes = progressMetrics['Active minutes'].values.reduce((total, value) => total + value, 0);
-const totalReps = progressMetrics['Total reps'].values.reduce((total, value) => total + value, 0);
-const averageWorkoutsPerWeek = (totalWorkouts / progressMetrics.Workouts.values.length).toFixed(1);
-
 function ProgressAnalytics() {
   const [metric, setMetric] = useState('Workouts');
   const [period, setPeriod] = useState(8);
-  const activeMetric = progressMetrics[metric];
-  const visibleValues = activeMetric.values.slice(-period);
-  const chartMax = Math.max(...visibleValues);
+  const [weeklyStats, setWeeklyStats] = useState([]);
+  const [trainingBalance, setTrainingBalance] = useState([]);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    Promise.all([apiRequest('/progress'), apiRequest('/progress/balance')])
+      .then(([stats, balance]) => {
+        setWeeklyStats(stats);
+        setTrainingBalance(balance);
+      })
+      .catch((requestError) => setError(requestError.message));
+  }, []);
+
+  const selectedMetric = {
+    Workouts: { field: 'workouts', unit: 'workouts' },
+    'Active minutes': { field: 'minutes', unit: 'minutes' },
+    'Total reps': { field: 'reps', unit: 'reps' },
+  }[metric];
+  const visibleStats = weeklyStats.slice(-period);
+  const visibleValues = visibleStats.length
+    ? visibleStats.map((week) => week[selectedMetric.field])
+    : [0];
+  const chartMax = Math.max(...visibleValues, 1);
   const chartPath = visibleValues.map((value, index) => {
     const x = visibleValues.length === 1 ? 350 : 12 + (index * 676) / (visibleValues.length - 1);
     const y = 120 - (value / chartMax) * 100;
     return `${index === 0 ? 'M' : 'L'}${x} ${y}`;
   }).join(' ');
   const periodTotal = visibleValues.reduce((total, value) => total + value, 0);
-  const weeklyAverage = Math.round(periodTotal / visibleValues.length);
+  const weeklyAverage = Math.round(periodTotal / period);
+  const totalWorkouts = weeklyStats.reduce((total, week) => total + week.workouts, 0);
+  const totalActiveMinutes = weeklyStats.reduce((total, week) => total + week.minutes, 0);
+  const totalReps = weeklyStats.reduce((total, week) => total + week.reps, 0);
+  const averageWorkoutsPerWeek = (totalWorkouts / 8).toFixed(1);
 
   return (
     <section className="progress-screen" aria-label="Progress and workout analytics">
@@ -92,6 +95,8 @@ function ProgressAnalytics() {
         </article>
       </div>
 
+      {error && <p className="api-error" role="alert">{error}</p>}
+
       <div className="progress-detail-grid">
         <article className="panel consistency-panel">
           <div className="panel-heading">
@@ -100,7 +105,7 @@ function ProgressAnalytics() {
               <label className="metric-select-label">
                 <span className="sr-only">Choose progress metric</span>
                 <select aria-label="Choose progress metric" onChange={(event) => setMetric(event.target.value)} value={metric}>
-                  {Object.keys(progressMetrics).map((option) => <option key={option}>{option}</option>)}
+                  {progressMetricOptions.map((option) => <option key={option}>{option}</option>)}
                 </select>
               </label>
               <label className="metric-select-label">
@@ -113,30 +118,31 @@ function ProgressAnalytics() {
             </div>
           </div>
           <div className="progress-period-summary" aria-live="polite">
-            <strong>{periodTotal.toLocaleString()} {activeMetric.unit}</strong>
-            <span>{weeklyAverage.toLocaleString()} {activeMetric.unit} per week on average</span>
+            <strong>{periodTotal.toLocaleString()} {selectedMetric.unit}</strong>
+            <span>{weeklyAverage.toLocaleString()} {selectedMetric.unit} per week on average</span>
           </div>
           <svg className="consistency-chart" viewBox="0 0 700 145" preserveAspectRatio="none" role="img" aria-label={`${metric} per week for the last ${period} weeks`}>
             <path d={`${chartPath} L688 130 L12 130 Z`} className="consistency-area" />
             <path d={chartPath} className="consistency-line" />
           </svg>
-          <div className="consistency-axis">{visibleValues.map((_, index) => <span key={index}>W{index + 1}</span>)}</div>
+          <div className="consistency-axis">{visibleStats.map((week, index) => <span key={week.week}>W{index + 1}</span>)}</div>
+          {totalWorkouts === 0 && <p className="progress-empty">Complete a workout to see your progress here.</p>}
         </article>
 
         <article className="panel muscle-panel">
           <p className="eyebrow">MUSCLE GROUPS</p>
           <h3>Training balance</h3>
-          {[
-            { name: 'Lower body', value: 78 },
-            { name: 'Core', value: 64 },
-            { name: 'Upper body', value: 48 },
-            { name: 'Mobility', value: 36 },
-          ].map((group) => (
-            <div className="muscle-progress" key={group.name}>
-              <div><span>{group.name}</span><strong>{group.value}%</strong></div>
-              <div className="progress-track"><span style={{ width: `${group.value}%` }} /></div>
+          <p className="balance-caption">Share of your logged exercise volume</p>
+          {trainingBalance.map((group) => {
+            const totalVolume = trainingBalance.reduce((total, item) => total + item.volume, 0);
+            const share = totalVolume ? Math.round((group.volume / totalVolume) * 100) : 0;
+            return (
+            <div className="muscle-progress" key={group.category}>
+              <div><span>{group.category}</span><strong>{share}%</strong></div>
+              <div className="progress-track"><span style={{ width: `${share}%` }} /></div>
             </div>
-          ))}
+          );})}
+          {trainingBalance.length === 0 && <p className="progress-empty">Exercise volume will appear after your first saved workout.</p>}
         </article>
       </div>
     </section>
@@ -144,14 +150,24 @@ function ProgressAnalytics() {
 }
 
 function WorkoutHistory() {
-  const [records, setRecords] = useState(workoutRecords);
+  const [records, setRecords] = useState([]);
   const [search, setSearch] = useState('');
-  const [monthFilter, setMonthFilter] = useState('2026-06');
+  const [monthFilter, setMonthFilter] = useState(() => new Date().toISOString().slice(0, 7));
   const [dialog, setDialog] = useState(null);
   const [draftName, setDraftName] = useState('');
   const [draftDuration, setDraftDuration] = useState('');
+  const [historyError, setHistoryError] = useState('');
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  useEffect(() => {
+    apiRequest('/workouts')
+      .then(setRecords)
+      .catch((requestError) => setHistoryError(requestError.message))
+      .finally(() => setHistoryLoading(false));
+  }, []);
+
   const visibleRecords = records.filter((record) => {
-    const matchesSearch = `${record.name} ${record.exercises.join(' ')}`.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = `${record.name} ${toExerciseNames(record.exercises).join(' ')}`.toLowerCase().includes(search.toLowerCase());
     return matchesSearch && (!monthFilter || record.date.startsWith(monthFilter));
   });
   const monthDate = monthFilter ? new Date(`${monthFilter}-01T12:00:00`) : null;
@@ -165,15 +181,37 @@ function WorkoutHistory() {
     setDialog({ type: 'edit', record });
   };
 
-  const saveEdit = () => {
-    setRecords((current) => current.map((record) => record.id === dialog.record.id
-      ? { ...record, name: draftName.trim() || record.name, duration: Math.max(1, Number(draftDuration) || record.duration) }
-      : record));
-    setDialog(null);
+  const saveEdit = async () => {
+    try {
+      const updated = await apiRequest(`/workouts/${dialog.record.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: draftName.trim() || dialog.record.name,
+          duration: Math.max(1, Number(draftDuration) || dialog.record.duration),
+        }),
+      });
+      setRecords((current) => current.map((record) => record.id === updated.id ? { ...record, ...updated } : record));
+      setDialog(null);
+      setHistoryError('');
+    } catch (requestError) {
+      setHistoryError(requestError.message);
+    }
+  };
+
+  const deleteWorkout = async (id) => {
+    try {
+      await apiRequest(`/workouts/${id}`, { method: 'DELETE' });
+      setRecords((current) => current.filter((record) => record.id !== id));
+      setDialog(null);
+      setHistoryError('');
+    } catch (requestError) {
+      setHistoryError(requestError.message);
+    }
   };
 
   return (
     <section className="screen-stack history-screen" aria-label="Workout history and record management">
+      {historyError && <p className="api-error" role="alert">{historyError}</p>}
       <div className="history-filters">
         <label className="history-search">
           <Icon name="search" />
@@ -195,7 +233,7 @@ function WorkoutHistory() {
             <tbody>
               {visibleRecords.map((record) => (
                 <tr key={record.id}>
-                  <td>{new Date(`${record.date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
+                  <td>{formatWorkoutDate(record.date)}</td>
                   <td>
                     <button className="record-name-button" onClick={() => setDialog({ type: 'details', record })} type="button">{record.name}</button>
                     <span className="record-program-label">Beginner program</span>
@@ -213,6 +251,8 @@ function WorkoutHistory() {
             </tbody>
           </table>
         </div>
+      ) : historyLoading ? (
+        <p className="history-loading" role="status">Loading workout history…</p>
       ) : (
         <div className="history-empty">
           <span className="empty-mark"><Icon name={records.length ? 'search' : 'history'} /></span>
@@ -230,12 +270,12 @@ function WorkoutHistory() {
               <span className="dialog-symbol delete-symbol"><Icon name="history" /></span>
               <p className="eyebrow">REMOVE RECORD</p><h2 id="history-dialog-title">Delete this workout?</h2>
               <p className="dialog-description"><strong>{dialog.record.name}</strong> will be permanently removed from your workout history.</p>
-              <div className="dialog-actions"><button className="secondary-button" onClick={() => setDialog(null)} type="button">Keep record</button><button className="danger-button" onClick={() => { setRecords((current) => current.filter((record) => record.id !== dialog.record.id)); setDialog(null); }} type="button">Delete workout</button></div>
+              <div className="dialog-actions"><button className="secondary-button" onClick={() => setDialog(null)} type="button">Keep record</button><button className="danger-button" onClick={() => deleteWorkout(dialog.record.id)} type="button">Delete workout</button></div>
             </>}
             {dialog.type === 'details' && <>
               <p className="eyebrow">{formatWorkoutDate(dialog.record.date)} · {dialog.record.duration} MIN</p><h2 id="history-dialog-title">{dialog.record.name}</h2>
               <p className="dialog-description">Completed exercises</p>
-              <ol className="exercise-detail-list">{dialog.record.exercises.map((exercise, index) => <li key={exercise}><span>{String(index + 1).padStart(2, '0')}</span>{exercise}<Icon name="check" /></li>)}</ol>
+              <ol className="exercise-detail-list">{toExerciseNames(dialog.record.exercises).map((exercise, index) => <li key={`${exercise}-${index}`}><span>{String(index + 1).padStart(2, '0')}</span>{exercise}<Icon name="check" /></li>)}</ol>
               <button className="primary-button dialog-done" onClick={() => setDialog(null)} type="button">Done</button>
             </>}
             {dialog.type === 'edit' && <>
@@ -254,14 +294,215 @@ function WorkoutHistory() {
 function App() {
   const [currentScreen, setCurrentScreen] = useState('home');
   const [notice, setNotice] = useState('');
+  const [exerciseCatalog, setExerciseCatalog] = useState([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+  const [pendingWorkout, setPendingWorkout] = useState(null);
+  const [planExercises, setPlanExercises] = useState([]);
+  const [fitnessProfile, setFitnessProfile] = useState(null);
+  const [workoutPlan, setWorkoutPlan] = useState(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState('');
+  const [activeWorkoutName, setActiveWorkoutName] = useState('Full Body Foundation');
+  const [activeWorkoutExercises, setActiveWorkoutExercises] = useState([]);
+  const [workoutStatus, setWorkoutStatus] = useState('none');
+
+  const refreshExerciseCatalog = async () => {
+    const [exercises, plan] = await Promise.all([
+      apiRequest('/exercises'),
+      apiRequest('/plan/exercises'),
+    ]);
+    setExerciseCatalog(exercises);
+    setPlanExercises(plan);
+    setApiError('');
+  };
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      apiRequest('/exercises'),
+      apiRequest('/plan/exercises'),
+      apiRequest('/fitness-goal'),
+      apiRequest('/workout-plan'),
+    ])
+      .then(([exercises, plan, profile, generatedPlan]) => {
+        if (!active) return;
+        setExerciseCatalog(exercises);
+        setPlanExercises(plan);
+        setFitnessProfile(profile);
+        setWorkoutPlan(generatedPlan);
+      })
+      .catch((requestError) => {
+        if (active) setApiError(requestError.message);
+      })
+      .finally(() => {
+        if (active) setCatalogLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
 
   const showNotice = (message) => {
     setNotice(message);
     window.setTimeout(() => setNotice(''), 3500);
   };
 
-  const handleGoalComplete = ({ goal, days, experience }) => {
-    showNotice(`Your ${goal.toLowerCase()} plan is ready: ${days}, ${experience.toLowerCase()}.`);
+  const toggleFavorite = async (exercise) => {
+    try {
+      await apiRequest(`/favorites/${exercise.id}`, { method: exercise.isFavorite ? 'DELETE' : 'PUT' });
+      await refreshExerciseCatalog();
+      showNotice(`${exercise.name} ${exercise.isFavorite ? 'removed from' : 'added to'} favorites.`);
+    } catch (requestError) {
+      setApiError(requestError.message);
+    }
+  };
+
+  const togglePlanExercise = async (exercise) => {
+    try {
+      await apiRequest(`/plan/exercises/${exercise.id}`, { method: exercise.isAdded ? 'DELETE' : 'PUT' });
+      await refreshExerciseCatalog();
+      showNotice(`${exercise.name} ${exercise.isAdded ? 'removed from' : 'added to'} your plan.`);
+    } catch (requestError) {
+      setApiError(requestError.message);
+    }
+  };
+
+  const removePlanExercise = async (exercise) => {
+    try {
+      await apiRequest(`/plan/exercises/${encodeURIComponent(exercise.id)}`, { method: 'DELETE' });
+      await refreshExerciseCatalog();
+      showNotice(`${exercise.name} removed from your plan.`);
+    } catch (requestError) {
+      setApiError(requestError.message);
+    }
+  };
+
+  const addExternalExerciseToPlan = async (exercise) => {
+    try {
+      const savedExercise = await apiRequest('/plan/external-exercises', {
+        method: 'POST',
+        body: JSON.stringify({
+          externalId: exercise.id,
+          name: exercise.name,
+          category: exercise.category || 'Exercise',
+          level: exercise.level || 'Beginner',
+          equipment: exercise.equipment || 'No equipment',
+          instruction: exercise.overview || exercise.instructions?.[0] || 'Follow the exercise instructions in the library.',
+        }),
+      });
+      await refreshExerciseCatalog();
+      showNotice(`${savedExercise.name} added to your plan.`);
+      return savedExercise;
+    } catch (requestError) {
+      setApiError(requestError.message);
+      return null;
+    }
+  };
+
+  const finishWorkout = (workout) => {
+    const now = new Date();
+    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    setPendingWorkout({ ...workout, date: localDate });
+    setCurrentScreen('feedback');
+  };
+
+  const beginWorkout = (name, exercises) => {
+    if (!Array.isArray(exercises) || exercises.length === 0) {
+      showNotice('Choose a workout from My Plan before starting.');
+      setCurrentScreen('plan');
+      return;
+    }
+    setActiveWorkoutName(typeof name === 'string' && name.trim() ? name : 'Full Body Foundation');
+    setActiveWorkoutExercises(exercises.map((exercise) => ({
+      ...exercise,
+      id: exercise.id?.startsWith('exerciseapi:')
+        ? exercise.id
+        : exercise.source === 'ExerciseAPI'
+          ? `exerciseapi:${exercise.id}`
+          : exercise.id,
+      instruction: exercise.instructions?.join(' ')
+        || exercise.instruction
+        || exercise.overview
+        || 'Follow the exercise instructions in the ExerciseAPI catalog.',
+    })));
+    setWorkoutStatus('active');
+    setCurrentScreen('workout');
+  };
+
+  const generateWorkoutPlan = async (profile, forceRefresh = false) => {
+    const candidates = await fetchWorkoutExerciseCandidates(profile, { forceRefresh });
+    const generatedPlan = createWorkoutPlan(profile, candidates);
+    const savedPlan = await apiRequest('/workout-plan', {
+      method: 'PUT',
+      body: JSON.stringify(generatedPlan),
+    });
+    setWorkoutPlan(savedPlan);
+    return savedPlan;
+  };
+
+  const regenerateWorkoutPlan = async (forceRefresh = false) => {
+    if (!fitnessProfile) return;
+    setPlanLoading(true);
+    setPlanError('');
+    try {
+      await generateWorkoutPlan(fitnessProfile, forceRefresh);
+      showNotice('Your personalized weekly workout plan is ready.');
+    } catch (requestError) {
+      setPlanError(requestError.message || 'The personalized workout plan could not be generated.');
+    } finally {
+      setPlanLoading(false);
+    }
+  };
+
+  const saveGeneratedWorkoutPlan = async (updatedPlan) => {
+    const savedPlan = await apiRequest('/workout-plan', {
+      method: 'PUT',
+      body: JSON.stringify(updatedPlan),
+    });
+    setWorkoutPlan(savedPlan);
+  };
+
+  const saveWorkoutFeedback = async ({ difficulty, feltPain }) => {
+    if (!pendingWorkout) {
+      setApiError('No active workout was found to save. Start a workout before submitting feedback.');
+      return;
+    }
+    try {
+      await apiRequest('/workouts', {
+        method: 'POST',
+        body: JSON.stringify({ ...pendingWorkout, difficulty, feltPain }),
+      });
+      setPendingWorkout(null);
+      setWorkoutStatus('none');
+      setApiError('');
+      showNotice('Workout and feedback saved to your history.');
+      setCurrentScreen('home');
+    } catch (requestError) {
+      setApiError(requestError.message);
+    }
+  };
+
+  const handleGoalComplete = async (profile) => {
+    try {
+      const savedProfile = await apiRequest('/fitness-goal', {
+        method: 'PUT',
+        body: JSON.stringify(profile),
+      });
+      setFitnessProfile(savedProfile);
+      setApiError('');
+      setCurrentScreen('plan');
+      setPlanLoading(true);
+      setPlanError('');
+      try {
+        await generateWorkoutPlan(savedProfile);
+        showNotice('Your personalized weekly workout plan is ready.');
+      } catch (requestError) {
+        setPlanError(requestError.message || 'The workout plan could not be generated.');
+      } finally {
+        setPlanLoading(false);
+      }
+    } catch (requestError) {
+      setApiError(requestError.message);
+    }
   };
 
   return (
@@ -306,7 +547,7 @@ function App() {
       <div className="app-main">
         <header className="topbar">
           <div>
-            <p className="eyebrow">BEGINNER PROGRAM</p>
+            <p className="eyebrow">{fitnessProfile?.experience?.toUpperCase() || 'PERSONALIZED PROGRAM'}</p>
             <h1>{({
               goals: 'Choose Your Fitness Goal',
               plan: 'Personalized Workout Plan',
@@ -334,42 +575,79 @@ function App() {
         </header>
 
         <main className="page-content">
+          {apiError && <p className="api-error app-api-error" role="alert">{apiError}</p>}
           {currentScreen === 'goals' ? (
             <FitnessGoalSelection
+              key={fitnessProfile ? `${fitnessProfile.goal}-${fitnessProfile.days}-${fitnessProfile.experience}` : 'new-goal'}
+              initialProfile={fitnessProfile}
               onBack={() => setCurrentScreen('home')}
               onComplete={handleGoalComplete}
             />
           ) : currentScreen === 'progress' ? (
             <ProgressAnalytics />
           ) : currentScreen === 'schedule' ? (
-            <WorkoutSchedule onViewWorkout={() => setCurrentScreen('workout')} />
+            <WorkoutSchedule
+              fitnessProfile={fitnessProfile}
+              onSetFitnessGoal={() => setCurrentScreen('goals')}
+              onViewWorkout={beginWorkout}
+              workoutPlan={workoutPlan}
+            />
           ) : currentScreen === 'history' ? (
             <WorkoutHistory />
           ) : currentScreen === 'achievements' ? (
             <Achievements />
           ) : currentScreen === 'plan' ? (
             <WorkoutPlan
+              fitnessProfile={fitnessProfile}
+              workoutPlan={workoutPlan}
+              planLoading={planLoading}
+              planError={planError}
+              onGenerateWorkoutPlan={regenerateWorkoutPlan}
+              onSetFitnessGoal={() => setCurrentScreen('goals')}
+              onUpdateWorkoutPlan={saveGeneratedWorkoutPlan}
+              onRemovePlanExercise={removePlanExercise}
+              planExercises={planExercises}
               onBrowseExercises={() => setCurrentScreen('library')}
-              onStartWorkout={() => showNotice('Workout started: Lower Body Basics.')}
+              onStartWorkout={beginWorkout}
             />
           ) : currentScreen === 'library' ? (
-            <ExerciseLibrary onAddToPlan={showNotice} />
+            <ExerciseLibrary
+              exercises={exerciseCatalog}
+              fitnessProfile={fitnessProfile}
+              loading={catalogLoading}
+              onAddExternalExercise={addExternalExerciseToPlan}
+              onRemovePlanExercise={removePlanExercise}
+              onToggleFavorite={toggleFavorite}
+              onTogglePlanExercise={togglePlanExercise}
+              planExercises={planExercises}
+            />
           ) : currentScreen === 'workout' ? (
-            <ActiveWorkout onFinish={() => setCurrentScreen('feedback')} />
+            workoutStatus === 'none' ? (
+              <section className="workout-complete-screen" aria-label="No active workout">
+                <p className="eyebrow">NO ACTIVE SESSION</p>
+                <h2>No active workout</h2>
+                <p>Start a workout from My Plan when you’re ready for your next session.</p>
+                <button className="primary-button" onClick={() => setCurrentScreen('plan')} type="button">
+                  Open My Plan
+                  <Icon name="arrow" />
+                </button>
+              </section>
+            ) : (
+              <ActiveWorkout
+                exercises={activeWorkoutExercises}
+                initiallyComplete={workoutStatus === 'complete'}
+                onFinish={finishWorkout}
+                onWorkoutComplete={() => setWorkoutStatus('complete')}
+                workoutName={activeWorkoutName}
+              />
+            )
           ) : currentScreen === 'feedback' ? (
-            <WorkoutFeedback onSaved={({ difficulty, feltPain }) => {
-              const difficultyLabels = {
-                'too-easy': 'too easy',
-                'just-right': 'just right',
-                'too-hard': 'too hard',
-                unfinished: 'unfinished',
-              };
-              showNotice(`Feedback saved: workout felt ${difficultyLabels[difficulty]}${feltPain ? ', pain or discomfort reported' : ''}.`);
-              setCurrentScreen('home');
-            }} />
+            <WorkoutFeedback onSaved={saveWorkoutFeedback} />
           ) : (
             <HomeDashboard
-              onContinue={() => setCurrentScreen('workout')}
+              fitnessProfile={fitnessProfile}
+              workoutPlan={workoutPlan}
+              onContinue={beginWorkout}
               onOpenPlan={() => setCurrentScreen('plan')}
               onOpenProgress={() => setCurrentScreen('progress')}
             />
