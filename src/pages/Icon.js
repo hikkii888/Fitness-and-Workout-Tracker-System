@@ -10,6 +10,7 @@ const iconPaths = {
   chart: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>,
   star: <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z" />,
   history: <><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></>,
+  user: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
   search: <><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></>,
   edit: <><path d="m4 16.5-.8 4.3 4.3-.8L20 7.5 16.5 4 4 16.5Z" /><path d="m14.8 5.7 3.5 3.5" /></>,
   trash: <><path d="M4 7h16M10 11v6M14 11v6M5 7l1 14h12l1-14M9 7V4h6v3" /></>,
@@ -19,6 +20,7 @@ const iconPaths = {
   check: <path d="m5 12 4 4L19 6" />,
   plus: <><path d="M12 5v14" /><path d="M5 12h14" /></>,
   arrow: <><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></>,
+  logout: <><path d="M10 17l5-5-5-5m5 5H3" /><path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7" /></>,
 };
 
 function Icon({ name, className = '' }) {

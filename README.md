@@ -70,6 +70,12 @@ All endpoints are under `/api`. Successful list requests return JSON arrays; val
 | Method | Endpoint | Purpose |
 |---|---|---|
 | `GET` | `/api/health` | Check API and database availability |
+| `POST` | `/api/auth/register` | Create an account and sign in |
+| `POST` | `/api/auth/login` | Sign in to an existing account |
+| `GET` | `/api/auth/me` | Read the signed-in account |
+| `PATCH` | `/api/auth/profile` | Update name, email, avatar, age, gender, phone, and address |
+| `PATCH` | `/api/auth/password` | Change the signed-in account password |
+| `POST` | `/api/auth/logout` | Sign out and clear the session |
 | `GET` / `PUT` | `/api/fitness-goal` | Read or save fitness goal, training frequency, and experience preferences |
 | `GET` / `PUT` | `/api/workout-plan` | Read or persist the generated ExerciseAPI.dev workout schedule |
 | `GET` | `/api/exercises?search=squat&category=Lower%20body&level=Beginner` | Search/filter the exercise catalog |
@@ -119,7 +125,28 @@ Example request to add a catalog exercise:
 }
 ```
 
-The current app is a local, single-user application: it has no login, cloud database, or multi-user access control. Back up `data/fitness.sqlite` to preserve local workout data.
+The tracker requires an account. Passwords are stored as salted scrypt hashes and
+sessions use random tokens in HTTP-only, SameSite=Lax cookies. Goals, generated
+plans, favorites, planned exercises, workout history, and profile details are
+scoped to the signed-in account. Existing single-user workout data is assigned
+to the first account created after upgrading the database. Back up
+`data/fitness.sqlite` to preserve local accounts and workouts.
+
+## Team contributions
+
+| Contributor | Responsibilities |
+|---|---|
+| dvd | Backend and integration; home dashboard and fitness goal selection |
+| Ker | Landing page, personalized workout plan, and exercise library |
+| Vinz | Sign-up and login screens; workout logging, active workout, and feedback |
+| Shann | Achievements and workout history |
+| Jeff | Exercise API integration and backend services |
+
+## Source structure
+
+- `src/pages/` contains the dashboard screens and account screens.
+- `src/App.js` coordinates navigation and app state.
+- `server/` contains the Express API, authentication, and SQLite persistence.
 
 ## Checks
 

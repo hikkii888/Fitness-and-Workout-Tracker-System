@@ -10,6 +10,31 @@ database.pragma('journal_mode = WAL');
 database.pragma('foreign_keys = ON');
 
 database.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    password_salt TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    age INTEGER,
+    gender TEXT,
+    avatar_data_url TEXT,
+    phone TEXT,
+    address_line1 TEXT,
+    address_line2 TEXT,
+    city TEXT,
+    region TEXT,
+    postal_code TEXT,
+    country TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS auth_sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at INTEGER NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS exercises (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
@@ -46,6 +71,7 @@ database.exec(`
 
   CREATE TABLE IF NOT EXISTS workout_sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     date TEXT NOT NULL,
     duration INTEGER NOT NULL CHECK (duration > 0),
@@ -64,7 +90,41 @@ database.exec(`
 
   CREATE INDEX IF NOT EXISTS workout_sessions_date_idx ON workout_sessions(date);
   CREATE INDEX IF NOT EXISTS session_exercises_session_idx ON session_exercises(session_id);
+
+  CREATE TABLE IF NOT EXISTS user_favorite_exercises (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    exercise_id TEXT NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, exercise_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS user_plan_exercises (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    exercise_id TEXT NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+    added_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, exercise_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS user_fitness_profiles (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    goal TEXT NOT NULL,
+    days TEXT NOT NULL,
+    experience TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS user_generated_workout_plans (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    plan_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
 `);
+
+if (!database.pragma('table_info(exercises)').some((column) => column.name === 'owner_id')) {
+  database.exec('ALTER TABLE exercises ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE');
+}
+if (!database.pragma('table_info(workout_sessions)').some((column) => column.name === 'user_id')) {
+  database.exec('ALTER TABLE workout_sessions ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE');
+}
 
 database.exec(`
   UPDATE fitness_profile
@@ -112,17 +172,44 @@ const seed = database.transaction(() => {
 });
 seed();
 
-export function listExercises({ search = '', category = '', level = '' } = {}) {
+export function claimLegacyData(userId) {
+  if (database.prepare('SELECT COUNT(*) AS count FROM users').get().count !== 1) return;
+
+  database.transaction(() => {
+    database.prepare('UPDATE workout_sessions SET user_id = ? WHERE user_id IS NULL').run(userId);
+    database.prepare(`
+      INSERT OR IGNORE INTO user_favorite_exercises (user_id, exercise_id)
+      SELECT ?, exercise_id FROM favorite_exercises
+    `).run(userId);
+    database.prepare(`
+      INSERT OR IGNORE INTO user_plan_exercises (user_id, exercise_id, added_at)
+      SELECT ?, exercise_id, added_at FROM plan_exercises
+    `).run(userId);
+    database.prepare(`
+      INSERT OR IGNORE INTO user_fitness_profiles (user_id, goal, days, experience, updated_at)
+      SELECT ?, goal, days, experience, updated_at FROM fitness_profile WHERE id = 1
+    `).run(userId);
+    database.prepare(`
+      INSERT OR IGNORE INTO user_generated_workout_plans (user_id, plan_json, updated_at)
+      SELECT ?, plan_json, updated_at FROM generated_workout_plan WHERE id = 1
+    `).run(userId);
+  })();
+}
+
+export function listExercises(userId, { search = '', category = '', level = '' } = {}) {
   return database.prepare(`
     SELECT e.*,
-      EXISTS (SELECT 1 FROM favorite_exercises f WHERE f.exercise_id = e.id) AS isFavorite,
-      EXISTS (SELECT 1 FROM plan_exercises p WHERE p.exercise_id = e.id) AS isAdded
+      EXISTS (SELECT 1 FROM user_favorite_exercises f
+        WHERE f.user_id = ? AND f.exercise_id = e.id) AS isFavorite,
+      EXISTS (SELECT 1 FROM user_plan_exercises p
+        WHERE p.user_id = ? AND p.exercise_id = e.id) AS isAdded
     FROM exercises e
-    WHERE (? = '' OR e.name LIKE ? OR e.category LIKE ? OR e.level LIKE ?)
+    WHERE (e.owner_id IS NULL OR e.owner_id = ?)
+      AND (? = '' OR e.name LIKE ? OR e.category LIKE ? OR e.level LIKE ?)
       AND (? = '' OR e.category = ?)
       AND (? = '' OR e.level = ?)
     ORDER BY e.category, e.name
-  `).all(search, `%${search}%`, `%${search}%`, `%${search}%`, category, category, level, level)
+  `).all(userId, userId, userId, search, `%${search}%`, `%${search}%`, `%${search}%`, category, category, level, level)
     .map((exercise) => ({
       ...exercise,
       sets: Number(exercise.sets),
@@ -131,7 +218,7 @@ export function listExercises({ search = '', category = '', level = '' } = {}) {
     }));
 }
 
-export function listWorkouts() {
+export function listWorkouts(userId) {
   return database.prepare(`
     SELECT s.*,
       COALESCE(json_group_array(
@@ -141,9 +228,10 @@ export function listWorkouts() {
       ) FILTER (WHERE se.id IS NOT NULL), '[]') AS exercises_json
     FROM workout_sessions s
     LEFT JOIN session_exercises se ON se.session_id = s.id
+    WHERE s.user_id = ?
     GROUP BY s.id
     ORDER BY s.date DESC, s.id DESC
-  `).all().map((row) => ({
+  `).all(userId).map((row) => ({
     id: row.id,
     name: row.name,
     date: row.date,
@@ -155,7 +243,7 @@ export function listWorkouts() {
   }));
 }
 
-export function getProgressStats() {
+export function getProgressStats(userId) {
   const rows = database.prepare(`
     SELECT date(s.date, '-' || ((CAST(strftime('%w', s.date) AS INTEGER) + 6) % 7) || ' days') AS week,
       COUNT(*) AS workouts,
@@ -166,9 +254,9 @@ export function getProgressStats() {
         WHERE se.session_id = s.id AND json_extract(item.value, '$.completed') = 1
       )), 0) AS reps
     FROM workout_sessions s
-    WHERE s.date >= date('now', '-56 days')
+    WHERE s.user_id = ? AND s.date >= date('now', '-56 days')
     GROUP BY week ORDER BY week
-  `).all();
+  `).all(userId);
   const statsByWeek = new Map(rows.map((row) => [row.week, row]));
   const monday = new Date();
   monday.setUTCHours(0, 0, 0, 0);
@@ -188,7 +276,7 @@ export function getProgressStats() {
   });
 }
 
-export function getProgressBalance() {
+export function getProgressBalance(userId) {
   return database.prepare(`
     SELECT COALESCE(e.category, 'Other') AS category,
       COUNT(DISTINCT se.session_id) AS workouts,
@@ -198,8 +286,10 @@ export function getProgressBalance() {
         WHERE json_extract(item.value, '$.completed') = 1
       )), 0) AS volume
     FROM session_exercises se
+    JOIN workout_sessions s ON s.id = se.session_id
     LEFT JOIN exercises e ON e.name = se.exercise_name
+    WHERE s.user_id = ?
     GROUP BY category
     ORDER BY volume DESC, category
-  `).all();
+  `).all(userId);
 }

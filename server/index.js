@@ -1,9 +1,11 @@
 import express from 'express';
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   database,
+  claimLegacyData,
   getProgressBalance,
   getProgressStats,
   listExercises,
@@ -14,7 +16,11 @@ const app = express();
 const port = Number(process.env.PORT) || 3001;
 const rootDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const exerciseApiBaseUrl = 'https://api.exerciseapi.dev/v1';
-app.use(express.json({ limit: '100kb' }));
+const sessionCookieName = 'fitness_session';
+const sessionDurationSeconds = 30 * 24 * 60 * 60;
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const genderOptions = new Set(['Woman', 'Man', 'Non-binary', 'Self-describe', 'Prefer not to say']);
+app.use(express.json({ limit: '800kb' }));
 
 function isNonEmptyString(value, maxLength = 100) {
   return typeof value === 'string' && value.trim().length > 0 && value.trim().length <= maxLength;
@@ -34,6 +40,93 @@ function exerciseApiError(response, status, code, message, hint, details = {}) {
       details,
     },
   });
+}
+
+function hashToken(token) {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+function hashPassword(password, salt) {
+  return scryptSync(password, salt, 64).toString('hex');
+}
+
+function publicUser(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    createdAt: user.created_at,
+    age: user.age,
+    gender: user.gender,
+    avatarDataUrl: user.avatar_data_url,
+    phone: user.phone,
+    addressLine1: user.address_line1,
+    addressLine2: user.address_line2,
+    city: user.city,
+    region: user.region,
+    postalCode: user.postal_code,
+    country: user.country,
+  };
+}
+
+function readSessionToken(request) {
+  const cookie = request.headers.cookie?.split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${sessionCookieName}=`));
+  if (!cookie) return null;
+  try {
+    return decodeURIComponent(cookie.slice(sessionCookieName.length + 1));
+  } catch {
+    return null;
+  }
+}
+
+function sessionCookie(token, secure) {
+  return [
+    `${sessionCookieName}=${encodeURIComponent(token)}`,
+    'Path=/',
+    `Max-Age=${sessionDurationSeconds}`,
+    'HttpOnly',
+    'SameSite=Lax',
+    secure ? 'Secure' : '',
+  ].filter(Boolean).join('; ');
+}
+
+function clearSessionCookie(secure) {
+  return [
+    `${sessionCookieName}=`,
+    'Path=/',
+    'Max-Age=0',
+    'HttpOnly',
+    'SameSite=Lax',
+    secure ? 'Secure' : '',
+  ].filter(Boolean).join('; ');
+}
+
+function findSessionUser(request) {
+  const token = readSessionToken(request);
+  if (!token) return null;
+  const tokenHash = hashToken(token);
+  const session = database.prepare(`
+    SELECT user_id, expires_at FROM auth_sessions WHERE token_hash = ?
+  `).get(tokenHash);
+  if (!session) return null;
+  if (session.expires_at <= Date.now()) {
+    database.prepare('DELETE FROM auth_sessions WHERE token_hash = ?').run(tokenHash);
+    return null;
+  }
+  return database.prepare(`
+    SELECT id, name, email, created_at, age, gender, avatar_data_url,
+      phone, address_line1, address_line2, city, region, postal_code, country
+    FROM users WHERE id = ?
+  `).get(session.user_id) || null;
+}
+
+function requireAuth(request, response, next) {
+  const user = findSessionUser(request);
+  if (!user) return response.status(401).json({ error: 'Please sign in to continue.' });
+  request.user = user;
+  return next();
 }
 
 function isValidPlanExercise(exercise, roles) {
@@ -152,12 +245,186 @@ app.get('/api/health', (_request, response) => {
   response.json({ status: 'ok', database: 'connected' });
 });
 
-app.get('/api/fitness-goal', (_request, response) => {
+function startSession(response, userId) {
+  const token = randomBytes(32).toString('base64url');
+  database.prepare(`
+    INSERT INTO auth_sessions (token_hash, user_id, expires_at)
+    VALUES (?, ?, ?)
+  `).run(hashToken(token), userId, Date.now() + sessionDurationSeconds * 1000);
+  response.setHeader('Set-Cookie', sessionCookie(token, process.env.NODE_ENV === 'production'));
+}
+
+app.post('/api/auth/register', (request, response) => {
+  const { name, email, password } = request.body ?? {};
+  const normalizedName = typeof name === 'string' ? name.trim() : '';
+  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  if (normalizedName.length < 2 || normalizedName.length > 100) {
+    return response.status(400).json({ error: 'Name must be between 2 and 100 characters.' });
+  }
+  if (normalizedEmail.length > 254 || !emailPattern.test(normalizedEmail)) {
+    return response.status(400).json({ error: 'Enter a valid email address.' });
+  }
+  if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
+    return response.status(400).json({ error: 'Password must be between 8 and 128 characters.' });
+  }
+
+  const salt = randomBytes(16).toString('hex');
+  try {
+    const result = database.prepare(`
+      INSERT INTO users (name, email, password_salt, password_hash)
+      VALUES (?, ?, ?, ?)
+    `).run(normalizedName, normalizedEmail, salt, hashPassword(password, salt));
+    const userId = Number(result.lastInsertRowid);
+    claimLegacyData(userId);
+    const user = database.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    startSession(response, userId);
+    return response.status(201).json({ user: publicUser(user) });
+  } catch (error) {
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return response.status(409).json({ error: 'An account with that email already exists.' });
+    }
+    throw error;
+  }
+});
+
+app.post('/api/auth/login', (request, response) => {
+  const { email, password } = request.body ?? {};
+  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  if (!normalizedEmail || typeof password !== 'string' || password.length > 128) {
+    return response.status(401).json({ error: 'Email or password is incorrect.' });
+  }
+  const user = database.prepare('SELECT * FROM users WHERE email = ?').get(normalizedEmail);
+  const candidateHash = user ? hashPassword(password, user.password_salt) : '';
+  const passwordMatches = user
+    && Buffer.byteLength(candidateHash) === Buffer.byteLength(user.password_hash)
+    && timingSafeEqual(Buffer.from(candidateHash), Buffer.from(user.password_hash));
+  if (!passwordMatches) {
+    return response.status(401).json({ error: 'Email or password is incorrect.' });
+  }
+  startSession(response, user.id);
+  return response.json({ user: publicUser(user) });
+});
+
+app.get('/api/auth/me', (request, response) => {
+  const user = findSessionUser(request);
+  if (!user && readSessionToken(request)) {
+    response.setHeader('Set-Cookie', clearSessionCookie(process.env.NODE_ENV === 'production'));
+  }
+  return response.json({ user: user ? publicUser(user) : null });
+});
+
+app.post('/api/auth/logout', (request, response) => {
+  const token = readSessionToken(request);
+  if (token) database.prepare('DELETE FROM auth_sessions WHERE token_hash = ?').run(hashToken(token));
+  response.setHeader('Set-Cookie', clearSessionCookie(process.env.NODE_ENV === 'production'));
+  return response.status(204).end();
+});
+
+app.patch('/api/auth/profile', requireAuth, (request, response) => {
+  const body = request.body ?? {};
+  const columns = {
+    name: ['name', (value) => value.trim()],
+    email: ['email', (value) => value.trim().toLowerCase()],
+    age: ['age', (value) => value],
+    gender: ['gender', (value) => value],
+    avatarDataUrl: ['avatar_data_url', (value) => value],
+    phone: ['phone', (value) => value?.trim() || null],
+    addressLine1: ['address_line1', (value) => value?.trim() || null],
+    addressLine2: ['address_line2', (value) => value?.trim() || null],
+    city: ['city', (value) => value?.trim() || null],
+    region: ['region', (value) => value?.trim() || null],
+    postalCode: ['postal_code', (value) => value?.trim() || null],
+    country: ['country', (value) => value?.trim() || null],
+  };
+  const keys = Object.keys(body);
+  if (!keys.length || keys.some((key) => !columns[key])) {
+    return response.status(400).json({ error: 'Provide valid profile fields to update.' });
+  }
+  if ('name' in body && (typeof body.name !== 'string' || body.name.trim().length < 2 || body.name.trim().length > 100)) {
+    return response.status(400).json({ error: 'Name must be between 2 and 100 characters.' });
+  }
+  if ('email' in body && (typeof body.email !== 'string' || body.email.trim().length > 254 || !emailPattern.test(body.email.trim()))) {
+    return response.status(400).json({ error: 'Enter a valid email address.' });
+  }
+  if ('age' in body && body.age !== null && (!Number.isInteger(body.age) || body.age < 13 || body.age > 120)) {
+    return response.status(400).json({ error: 'Age must be between 13 and 120, or left blank.' });
+  }
+  if ('gender' in body && body.gender !== null && !genderOptions.has(body.gender)) {
+    return response.status(400).json({ error: 'Choose a valid gender option.' });
+  }
+  const textFields = [
+    ['phone', 'Phone number', 30],
+    ['addressLine1', 'Street address', 160],
+    ['addressLine2', 'Address line 2', 160],
+    ['city', 'City', 100],
+    ['region', 'State or province', 100],
+    ['postalCode', 'Postal code', 24],
+    ['country', 'Country', 100],
+  ];
+  for (const [field, label, maxLength] of textFields) {
+    if (field in body && body[field] !== null && (
+      typeof body[field] !== 'string' || body[field].trim().length > maxLength
+    )) {
+      return response.status(400).json({ error: `${label} must be no more than ${maxLength} characters.` });
+    }
+  }
+  if ('phone' in body && body.phone !== null && body.phone.trim()
+    && !/^[+()\d.\-\s]{7,30}$/.test(body.phone.trim())) {
+    return response.status(400).json({ error: 'Enter a valid phone number.' });
+  }
+  if ('avatarDataUrl' in body && body.avatarDataUrl !== null) {
+    const avatar = typeof body.avatarDataUrl === 'string'
+      ? /^data:image\/(?:png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(body.avatarDataUrl)
+      : null;
+    if (!avatar || Buffer.from(avatar[1], 'base64').length > 512 * 1024) {
+      return response.status(400).json({ error: 'Avatar must be a PNG, JPEG, or WebP image under 512 KB.' });
+    }
+  }
+
+  try {
+    database.prepare(`
+      UPDATE users
+      SET ${keys.map((key) => `${columns[key][0]} = ?`).join(', ')}
+      WHERE id = ?
+    `).run(...keys.map((key) => columns[key][1](body[key])), request.user.id);
+  } catch (error) {
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return response.status(409).json({ error: 'An account with that email already exists.' });
+    }
+    throw error;
+  }
+  const user = database.prepare('SELECT * FROM users WHERE id = ?').get(request.user.id);
+  return response.json({ user: publicUser(user) });
+});
+
+app.patch('/api/auth/password', requireAuth, (request, response) => {
+  const { currentPassword, newPassword } = request.body ?? {};
+  if (typeof currentPassword !== 'string' || typeof newPassword !== 'string'
+    || currentPassword.length > 128 || newPassword.length < 8 || newPassword.length > 128) {
+    return response.status(400).json({ error: 'Enter your current password and a new password of 8 to 128 characters.' });
+  }
+  const user = database.prepare('SELECT password_salt, password_hash FROM users WHERE id = ?')
+    .get(request.user.id);
+  const currentHash = hashPassword(currentPassword, user.password_salt);
+  if (!timingSafeEqual(Buffer.from(currentHash), Buffer.from(user.password_hash))) {
+    return response.status(401).json({ error: 'Current password is incorrect.' });
+  }
+  const salt = randomBytes(16).toString('hex');
+  database.prepare('UPDATE users SET password_salt = ?, password_hash = ? WHERE id = ?')
+    .run(salt, hashPassword(newPassword, salt), request.user.id);
+  database.prepare('DELETE FROM auth_sessions WHERE user_id = ?').run(request.user.id);
+  startSession(response, request.user.id);
+  return response.json({ message: 'Your password has been changed.' });
+});
+
+app.use('/api', requireAuth);
+
+app.get('/api/fitness-goal', (request, response) => {
   const profile = database.prepare(`
     SELECT goal, days, experience
-    FROM fitness_profile
-    WHERE id = 1
-  `).get();
+    FROM user_fitness_profiles
+    WHERE user_id = ?
+  `).get(request.user.id);
   response.json(profile ?? null);
 });
 
@@ -170,19 +437,20 @@ app.put('/api/fitness-goal', (request, response) => {
     return response.status(400).json({ error: 'Provide a valid fitness goal, training frequency, and experience level.' });
   }
   database.prepare(`
-    INSERT INTO fitness_profile (id, goal, days, experience, updated_at)
-    VALUES (1, ?, ?, ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(id) DO UPDATE SET
+    INSERT INTO user_fitness_profiles (user_id, goal, days, experience, updated_at)
+    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id) DO UPDATE SET
       goal = excluded.goal,
       days = excluded.days,
       experience = excluded.experience,
       updated_at = CURRENT_TIMESTAMP
-  `).run(goal, days, experience);
+  `).run(request.user.id, goal, days, experience);
   return response.json({ goal, days, experience });
 });
 
-app.get('/api/workout-plan', (_request, response) => {
-  const savedPlan = database.prepare('SELECT plan_json FROM generated_workout_plan WHERE id = 1').get();
+app.get('/api/workout-plan', (request, response) => {
+  const savedPlan = database.prepare('SELECT plan_json FROM user_generated_workout_plans WHERE user_id = ?')
+    .get(request.user.id);
   return response.json(savedPlan ? JSON.parse(savedPlan.plan_json) : null);
 });
 
@@ -194,12 +462,12 @@ app.put('/api/workout-plan', (request, response) => {
     });
   }
   database.prepare(`
-    INSERT INTO generated_workout_plan (id, plan_json, updated_at)
-    VALUES (1, ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(id) DO UPDATE SET
+    INSERT INTO user_generated_workout_plans (user_id, plan_json, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id) DO UPDATE SET
       plan_json = excluded.plan_json,
       updated_at = CURRENT_TIMESTAMP
-  `).run(JSON.stringify(plan));
+  `).run(request.user.id, JSON.stringify(plan));
   return response.json(plan);
 });
 
@@ -221,11 +489,11 @@ app.get('/api/exercises', (request, response) => {
   const search = typeof request.query.search === 'string' ? request.query.search.trim().slice(0, 100) : '';
   const category = typeof request.query.category === 'string' ? request.query.category.trim() : '';
   const level = typeof request.query.level === 'string' ? request.query.level.trim() : '';
-  response.json(listExercises({ search, category, level }));
+  response.json(listExercises(request.user.id, { search, category, level }));
 });
 
 app.get('/api/exercises/:exerciseId', (request, response) => {
-  const exercise = listExercises().find((item) => item.id === request.params.exerciseId);
+  const exercise = listExercises(request.user.id).find((item) => item.id === request.params.exerciseId);
   if (!exercise) return notFound(response, 'Exercise not found.');
   return response.json(exercise);
 });
@@ -238,10 +506,10 @@ app.post('/api/exercises', (request, response) => {
   }
   try {
     database.prepare(`
-      INSERT INTO exercises (id, name, category, level, sets, reps, instruction)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(id.trim(), name.trim(), category.trim(), level.trim(), sets, reps.trim(), instruction.trim());
-    const exercise = listExercises().find((item) => item.id === id.trim());
+      INSERT INTO exercises (id, name, category, level, sets, reps, instruction, owner_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id.trim(), name.trim(), category.trim(), level.trim(), sets, reps.trim(), instruction.trim(), request.user.id);
+    const exercise = listExercises(request.user.id).find((item) => item.id === id.trim());
     return response.status(201).json(exercise);
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
@@ -261,10 +529,10 @@ app.put('/api/exercises/:exerciseId', (request, response) => {
     const result = database.prepare(`
       UPDATE exercises
       SET name = ?, category = ?, level = ?, sets = ?, reps = ?, instruction = ?, equipment = ?
-      WHERE id = ?
-    `).run(name.trim(), category.trim(), level.trim(), sets, reps.trim(), instruction.trim(), equipment.trim(), request.params.exerciseId);
+      WHERE id = ? AND owner_id = ?
+    `).run(name.trim(), category.trim(), level.trim(), sets, reps.trim(), instruction.trim(), equipment.trim(), request.params.exerciseId, request.user.id);
     if (!result.changes) return notFound(response, 'Exercise not found.');
-    return response.json(listExercises().find((item) => item.id === request.params.exerciseId));
+    return response.json(listExercises(request.user.id).find((item) => item.id === request.params.exerciseId));
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return response.status(409).json({ error: 'An exercise with that name already exists.' });
@@ -274,31 +542,37 @@ app.put('/api/exercises/:exerciseId', (request, response) => {
 });
 
 app.delete('/api/exercises/:exerciseId', (request, response) => {
-  const result = database.prepare('DELETE FROM exercises WHERE id = ?').run(request.params.exerciseId);
+  const result = database.prepare('DELETE FROM exercises WHERE id = ? AND owner_id = ?')
+    .run(request.params.exerciseId, request.user.id);
   if (!result.changes) return notFound(response, 'Exercise not found.');
   return response.status(204).end();
 });
 
 app.put('/api/favorites/:exerciseId', (request, response) => {
-  const exercise = database.prepare('SELECT id FROM exercises WHERE id = ?').get(request.params.exerciseId);
+  const exercise = database.prepare('SELECT id FROM exercises WHERE id = ? AND (owner_id IS NULL OR owner_id = ?)')
+    .get(request.params.exerciseId, request.user.id);
   if (!exercise) return notFound(response, 'Exercise not found.');
-  database.prepare('INSERT OR IGNORE INTO favorite_exercises (exercise_id) VALUES (?)').run(exercise.id);
+  database.prepare('INSERT OR IGNORE INTO user_favorite_exercises (user_id, exercise_id) VALUES (?, ?)')
+    .run(request.user.id, exercise.id);
   return response.status(204).end();
 });
 
 app.delete('/api/favorites/:exerciseId', (request, response) => {
-  database.prepare('DELETE FROM favorite_exercises WHERE exercise_id = ?').run(request.params.exerciseId);
+  database.prepare('DELETE FROM user_favorite_exercises WHERE user_id = ? AND exercise_id = ?')
+    .run(request.user.id, request.params.exerciseId);
   return response.status(204).end();
 });
 
-app.get('/api/plan/exercises', (_request, response) => {
-  response.json(listExercises().filter((exercise) => exercise.isAdded));
+app.get('/api/plan/exercises', (request, response) => {
+  response.json(listExercises(request.user.id).filter((exercise) => exercise.isAdded));
 });
 
 app.put('/api/plan/exercises/:exerciseId', (request, response) => {
-  const exercise = database.prepare('SELECT id FROM exercises WHERE id = ?').get(request.params.exerciseId);
+  const exercise = database.prepare('SELECT id FROM exercises WHERE id = ? AND (owner_id IS NULL OR owner_id = ?)')
+    .get(request.params.exerciseId, request.user.id);
   if (!exercise) return notFound(response, 'Exercise not found.');
-  database.prepare('INSERT OR IGNORE INTO plan_exercises (exercise_id) VALUES (?)').run(exercise.id);
+  database.prepare('INSERT OR IGNORE INTO user_plan_exercises (user_id, exercise_id) VALUES (?, ?)')
+    .run(request.user.id, exercise.id);
   return response.status(204).end();
 });
 
@@ -324,9 +598,15 @@ app.post('/api/plan/external-exercises', (request, response) => {
 
   const externalExerciseId = `exerciseapi:${externalId.trim()}`;
   const saved = database.transaction(() => {
-    let exercise = database.prepare('SELECT id FROM exercises WHERE id = ?').get(externalExerciseId);
+    let exercise = database.prepare(`
+      SELECT id FROM exercises
+      WHERE id = ? AND (owner_id IS NULL OR owner_id = ?)
+    `).get(externalExerciseId, request.user.id);
     if (!exercise) {
-      exercise = database.prepare('SELECT id FROM exercises WHERE name = ?').get(name.trim());
+      exercise = database.prepare(`
+        SELECT id FROM exercises
+        WHERE name = ? AND (owner_id IS NULL OR owner_id = ?)
+      `).get(name.trim(), request.user.id);
     }
     if (!exercise) {
       database.prepare(`
@@ -344,9 +624,9 @@ app.post('/api/plan/external-exercises', (request, response) => {
     }
 
     const planResult = database.prepare(
-      'INSERT OR IGNORE INTO plan_exercises (exercise_id) VALUES (?)',
-    ).run(exercise.id);
-    const storedExercise = listExercises().find((item) => item.id === exercise.id);
+      'INSERT OR IGNORE INTO user_plan_exercises (user_id, exercise_id) VALUES (?, ?)',
+    ).run(request.user.id, exercise.id);
+    const storedExercise = listExercises(request.user.id).find((item) => item.id === exercise.id);
     return { exercise: storedExercise, added: planResult.changes > 0 };
   })();
 
@@ -354,12 +634,13 @@ app.post('/api/plan/external-exercises', (request, response) => {
 });
 
 app.delete('/api/plan/exercises/:exerciseId', (request, response) => {
-  database.prepare('DELETE FROM plan_exercises WHERE exercise_id = ?').run(request.params.exerciseId);
+  database.prepare('DELETE FROM user_plan_exercises WHERE user_id = ? AND exercise_id = ?')
+    .run(request.user.id, request.params.exerciseId);
   return response.status(204).end();
 });
 
-app.get('/api/workouts', (_request, response) => {
-  response.json(listWorkouts());
+app.get('/api/workouts', (request, response) => {
+  response.json(listWorkouts(request.user.id));
 });
 
 app.post('/api/workouts', (request, response) => {
@@ -386,9 +667,9 @@ app.post('/api/workouts', (request, response) => {
 
   const saveWorkout = database.transaction(() => {
     const result = database.prepare(`
-      INSERT INTO workout_sessions (name, date, duration, status, difficulty, felt_pain)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(name.trim(), date ? new Date(date).toISOString() : new Date().toISOString(), duration, status, difficulty, Number(feltPain));
+      INSERT INTO workout_sessions (user_id, name, date, duration, status, difficulty, felt_pain)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(request.user.id, name.trim(), date ? new Date(date).toISOString() : new Date().toISOString(), duration, status, difficulty, Number(feltPain));
     const insertExercise = database.prepare(`
       INSERT INTO session_exercises (session_id, exercise_name, sets_json)
       VALUES (?, ?, ?)
@@ -399,7 +680,7 @@ app.post('/api/workouts', (request, response) => {
     return Number(result.lastInsertRowid);
   });
   const sessionId = saveWorkout();
-  const workout = listWorkouts().find((item) => item.id === sessionId);
+  const workout = listWorkouts(request.user.id).find((item) => item.id === sessionId);
   return response.status(201).json(workout);
 });
 
@@ -409,25 +690,27 @@ app.put('/api/workouts/:id', (request, response) => {
   if (!Number.isInteger(id) || id < 1 || !isNonEmptyString(name) || !Number.isInteger(duration) || duration < 1 || duration > 1440) {
     return response.status(400).json({ error: 'Provide a valid workout id, name, and duration.' });
   }
-  const result = database.prepare('UPDATE workout_sessions SET name = ?, duration = ? WHERE id = ?').run(name.trim(), duration, id);
+  const result = database.prepare('UPDATE workout_sessions SET name = ?, duration = ? WHERE id = ? AND user_id = ?')
+    .run(name.trim(), duration, id, request.user.id);
   if (!result.changes) return notFound(response, 'Workout not found.');
-  return response.json(listWorkouts().find((workout) => workout.id === id));
+  return response.json(listWorkouts(request.user.id).find((workout) => workout.id === id));
 });
 
 app.delete('/api/workouts/:id', (request, response) => {
   const id = Number(request.params.id);
   if (!Number.isInteger(id) || id < 1) return response.status(400).json({ error: 'Workout id must be a positive integer.' });
-  const result = database.prepare('DELETE FROM workout_sessions WHERE id = ?').run(id);
+  const result = database.prepare('DELETE FROM workout_sessions WHERE id = ? AND user_id = ?')
+    .run(id, request.user.id);
   if (!result.changes) return notFound(response, 'Workout not found.');
   return response.status(204).end();
 });
 
-app.get('/api/progress', (_request, response) => {
-  response.json(getProgressStats());
+app.get('/api/progress', (request, response) => {
+  response.json(getProgressStats(request.user.id));
 });
 
-app.get('/api/progress/balance', (_request, response) => {
-  response.json(getProgressBalance());
+app.get('/api/progress/balance', (request, response) => {
+  response.json(getProgressBalance(request.user.id));
 });
 
 app.use('/api', (_request, response) => {
