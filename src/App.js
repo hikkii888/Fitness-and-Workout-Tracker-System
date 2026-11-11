@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { apiRequest, toExerciseNames } from './api';
 import { fetchWorkoutExerciseCandidates } from './exerciseApiService';
 import ActiveWorkout from './pages/ActiveWorkout';
@@ -29,6 +30,24 @@ const navigation = [
   { id: 'history', label: 'Workout History', icon: 'history' },
   { id: 'profile', label: 'Profile', icon: 'user' },
 ];
+
+const screenPaths = {
+  home: '/',
+  goals: '/goals',
+  plan: '/plan',
+  library: '/library',
+  workout: '/workout',
+  feedback: '/feedback',
+  progress: '/progress',
+  schedule: '/schedule',
+  achievements: '/achievements',
+  history: '/history',
+  profile: '/profile',
+};
+
+const screensByPath = Object.fromEntries(
+  Object.entries(screenPaths).map(([screen, path]) => [path, screen]),
+);
 
 function formatWorkoutDate(date) {
   const parsedDate = date.length === 10 ? new Date(`${date}T12:00:00`) : new Date(date);
@@ -295,10 +314,8 @@ function WorkoutHistory() {
 }
 
 function App() {
-  const [currentScreen, setCurrentScreen] = useState('home');
   const [currentUser, setCurrentUser] = useState(null);
   const [authStatus, setAuthStatus] = useState('checking');
-  const [authMode, setAuthMode] = useState('login');
   const [authError, setAuthError] = useState('');
   const [authRetry, setAuthRetry] = useState(0);
   const [notice, setNotice] = useState('');
@@ -314,6 +331,11 @@ function App() {
   const [activeWorkoutName, setActiveWorkoutName] = useState('Full Body Foundation');
   const [activeWorkoutExercises, setActiveWorkoutExercises] = useState([]);
   const [workoutStatus, setWorkoutStatus] = useState('none');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const routePath = location.pathname.replace(/\/+$/, '') || '/';
+  const currentScreen = screensByPath[routePath] || 'home';
+  const navigateToScreen = (screen) => navigate(screenPaths[screen] || '/');
 
   useEffect(() => {
     let active = true;
@@ -372,7 +394,7 @@ function App() {
 
   const handleAuthenticated = (user) => {
       setCurrentUser(user);
-      setCurrentScreen('home');
+      navigateToScreen('home');
       setAuthError('');
       setApiError('');
   };
@@ -380,7 +402,7 @@ function App() {
   const handleLogout = async () => {
       await apiRequest('/auth/logout', { method: 'POST' });
       setCurrentUser(null);
-      setCurrentScreen('home');
+      navigate('/login');
       setCatalogLoading(true);
       setExerciseCatalog([]);
       setPlanExercises([]);
@@ -390,7 +412,6 @@ function App() {
       setActiveWorkoutExercises([]);
       setWorkoutStatus('none');
       setApiError('');
-      setAuthMode('login');
   };
 
   const showNotice = (message) => {
@@ -454,13 +475,13 @@ function App() {
     const now = new Date();
     const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     setPendingWorkout({ ...workout, date: localDate });
-    setCurrentScreen('feedback');
+    navigateToScreen('feedback');
   };
 
   const beginWorkout = (name, exercises) => {
     if (!Array.isArray(exercises) || exercises.length === 0) {
       showNotice('Choose a workout from My Plan before starting.');
-      setCurrentScreen('plan');
+      navigateToScreen('plan');
       return;
     }
     setActiveWorkoutName(typeof name === 'string' && name.trim() ? name : 'Full Body Foundation');
@@ -477,7 +498,7 @@ function App() {
         || 'Follow the exercise instructions in the ExerciseAPI catalog.',
     })));
     setWorkoutStatus('active');
-    setCurrentScreen('workout');
+    navigateToScreen('workout');
   };
 
   const generateWorkoutPlan = async (profile, forceRefresh = false) => {
@@ -527,7 +548,7 @@ function App() {
       setWorkoutStatus('none');
       setApiError('');
       showNotice('Workout and feedback saved to your history.');
-      setCurrentScreen('home');
+      navigateToScreen('home');
     } catch (requestError) {
       setApiError(requestError.message);
     }
@@ -541,7 +562,7 @@ function App() {
       });
       setFitnessProfile(savedProfile);
       setApiError('');
-      setCurrentScreen('plan');
+      navigateToScreen('plan');
       setPlanLoading(true);
       setPlanError('');
       try {
@@ -573,21 +594,43 @@ function App() {
   }
   if (!currentUser) {
     return (
-      <AuthScreen
-        mode={authMode}
-        onAuthenticated={handleAuthenticated}
-        onModeChange={setAuthMode}
-      />
+      <Routes>
+        <Route
+          path="/login"
+          element={(
+            <AuthScreen
+              mode="login"
+              onAuthenticated={handleAuthenticated}
+              onModeChange={(mode) => navigate(mode === 'signup' ? '/signup' : '/login')}
+            />
+          )}
+        />
+        <Route
+          path="/signup"
+          element={(
+            <AuthScreen
+              mode="signup"
+              onAuthenticated={handleAuthenticated}
+              onModeChange={(mode) => navigate(mode === 'signup' ? '/signup' : '/login')}
+            />
+          )}
+        />
+        <Route path="*" element={<Navigate replace to="/login" />} />
+      </Routes>
     );
+  }
+
+  if (location.pathname === '/login' || location.pathname === '/signup') {
+    return <Navigate replace to="/" />;
   }
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <a className="brand" href="#home" onClick={() => setCurrentScreen('home')}>
+        <Link className="brand" to="/">
           <span className="brand-mark"><Icon name="bolt" /></span>
           <span>form<span className="brand-period">.</span></span>
-        </a>
+        </Link>
 
         <nav className="side-nav" aria-label="Main navigation">
           {navigation.map((item) => {
@@ -599,7 +642,7 @@ function App() {
                 key={item.id}
                 type="button"
                 disabled={!isAvailable}
-                onClick={() => isAvailable && setCurrentScreen(item.id)}
+                onClick={() => isAvailable && navigateToScreen(item.id)}
                 aria-current={currentScreen === item.id ? 'page' : undefined}
                 title={!isAvailable ? `${item.label} — coming soon` : undefined}
               >
@@ -657,88 +700,107 @@ function App() {
 
         <main className="page-content">
           {apiError && <p className="api-error app-api-error" role="alert">{apiError}</p>}
-          {currentScreen === 'goals' ? (
-            <FitnessGoalSelection
-              key={fitnessProfile ? `${fitnessProfile.goal}-${fitnessProfile.days}-${fitnessProfile.experience}` : 'new-goal'}
-              initialProfile={fitnessProfile}
-              onBack={() => setCurrentScreen('home')}
-              onComplete={handleGoalComplete}
+          <Routes>
+            <Route
+              path="/"
+              element={(
+                <HomeDashboard
+                  fitnessProfile={fitnessProfile}
+                  workoutPlan={workoutPlan}
+                  onContinue={beginWorkout}
+                  onOpenPlan={() => navigateToScreen('plan')}
+                  onOpenProgress={() => navigateToScreen('progress')}
+                />
+              )}
             />
-          ) : currentScreen === 'progress' ? (
-            <ProgressAnalytics />
-          ) : currentScreen === 'schedule' ? (
-            <WorkoutSchedule
-              fitnessProfile={fitnessProfile}
-              onSetFitnessGoal={() => setCurrentScreen('goals')}
-              onViewWorkout={beginWorkout}
-              workoutPlan={workoutPlan}
+            <Route
+              path="/goals"
+              element={(
+                <FitnessGoalSelection
+                  key={fitnessProfile ? `${fitnessProfile.goal}-${fitnessProfile.days}-${fitnessProfile.experience}` : 'new-goal'}
+                  initialProfile={fitnessProfile}
+                  onBack={() => navigateToScreen('home')}
+                  onComplete={handleGoalComplete}
+                />
+              )}
             />
-          ) : currentScreen === 'history' ? (
-            <WorkoutHistory />
-          ) : currentScreen === 'profile' ? (
-            <ProfilePage
-              onLogout={handleLogout}
-              onUserUpdated={setCurrentUser}
-              user={currentUser}
+            <Route path="/progress" element={<ProgressAnalytics />} />
+            <Route
+              path="/schedule"
+              element={(
+                <WorkoutSchedule
+                  fitnessProfile={fitnessProfile}
+                  onSetFitnessGoal={() => navigateToScreen('goals')}
+                  onViewWorkout={beginWorkout}
+                  workoutPlan={workoutPlan}
+                />
+              )}
             />
-          ) : currentScreen === 'achievements' ? (
-            <Achievements />
-          ) : currentScreen === 'plan' ? (
-            <WorkoutPlan
-              fitnessProfile={fitnessProfile}
-              workoutPlan={workoutPlan}
-              planLoading={planLoading}
-              planError={planError}
-              onGenerateWorkoutPlan={regenerateWorkoutPlan}
-              onSetFitnessGoal={() => setCurrentScreen('goals')}
-              onUpdateWorkoutPlan={saveGeneratedWorkoutPlan}
-              onRemovePlanExercise={removePlanExercise}
-              planExercises={planExercises}
-              onBrowseExercises={() => setCurrentScreen('library')}
-              onStartWorkout={beginWorkout}
+            <Route path="/history" element={<WorkoutHistory />} />
+            <Route
+              path="/profile"
+              element={<ProfilePage onLogout={handleLogout} onUserUpdated={setCurrentUser} user={currentUser} />}
             />
-          ) : currentScreen === 'library' ? (
-            <ExerciseLibrary
-              exercises={exerciseCatalog}
-              fitnessProfile={fitnessProfile}
-              loading={catalogLoading}
-              onAddExternalExercise={addExternalExerciseToPlan}
-              onRemovePlanExercise={removePlanExercise}
-              onToggleFavorite={toggleFavorite}
-              onTogglePlanExercise={togglePlanExercise}
-              planExercises={planExercises}
+            <Route path="/achievements" element={<Achievements />} />
+            <Route
+              path="/plan"
+              element={(
+                <WorkoutPlan
+                  fitnessProfile={fitnessProfile}
+                  workoutPlan={workoutPlan}
+                  planLoading={planLoading}
+                  planError={planError}
+                  onGenerateWorkoutPlan={regenerateWorkoutPlan}
+                  onSetFitnessGoal={() => navigateToScreen('goals')}
+                  onUpdateWorkoutPlan={saveGeneratedWorkoutPlan}
+                  onRemovePlanExercise={removePlanExercise}
+                  planExercises={planExercises}
+                  onBrowseExercises={() => navigateToScreen('library')}
+                  onStartWorkout={beginWorkout}
+                />
+              )}
             />
-          ) : currentScreen === 'workout' ? (
-            workoutStatus === 'none' ? (
-              <section className="workout-complete-screen" aria-label="No active workout">
-                <p className="eyebrow">NO ACTIVE SESSION</p>
-                <h2>No active workout</h2>
-                <p>Start a workout from My Plan when you’re ready for your next session.</p>
-                <button className="primary-button" onClick={() => setCurrentScreen('plan')} type="button">
-                  Open My Plan
-                  <Icon name="arrow" />
-                </button>
-              </section>
-            ) : (
-              <ActiveWorkout
-                exercises={activeWorkoutExercises}
-                initiallyComplete={workoutStatus === 'complete'}
-                onFinish={finishWorkout}
-                onWorkoutComplete={() => setWorkoutStatus('complete')}
-                workoutName={activeWorkoutName}
-              />
-            )
-          ) : currentScreen === 'feedback' ? (
-            <WorkoutFeedback onSaved={saveWorkoutFeedback} />
-          ) : (
-            <HomeDashboard
-              fitnessProfile={fitnessProfile}
-              workoutPlan={workoutPlan}
-              onContinue={beginWorkout}
-              onOpenPlan={() => setCurrentScreen('plan')}
-              onOpenProgress={() => setCurrentScreen('progress')}
+            <Route
+              path="/library"
+              element={(
+                <ExerciseLibrary
+                  exercises={exerciseCatalog}
+                  fitnessProfile={fitnessProfile}
+                  loading={catalogLoading}
+                  onAddExternalExercise={addExternalExerciseToPlan}
+                  onRemovePlanExercise={removePlanExercise}
+                  onToggleFavorite={toggleFavorite}
+                  onTogglePlanExercise={togglePlanExercise}
+                  planExercises={planExercises}
+                />
+              )}
             />
-          )}
+            <Route
+              path="/workout"
+              element={workoutStatus === 'none' ? (
+                <section className="workout-complete-screen" aria-label="No active workout">
+                  <p className="eyebrow">NO ACTIVE SESSION</p>
+                  <h2>No active workout</h2>
+                  <p>Start a workout from My Plan when you’re ready for your next session.</p>
+                  <button className="primary-button" onClick={() => navigateToScreen('plan')} type="button">
+                    Open My Plan
+                    <Icon name="arrow" />
+                  </button>
+                </section>
+              ) : (
+                <ActiveWorkout
+                  exercises={activeWorkoutExercises}
+                  initiallyComplete={workoutStatus === 'complete'}
+                  onFinish={finishWorkout}
+                  onWorkoutComplete={() => setWorkoutStatus('complete')}
+                  workoutName={activeWorkoutName}
+                />
+              )}
+            />
+            <Route path="/feedback" element={<WorkoutFeedback onSaved={saveWorkoutFeedback} />} />
+            <Route path="/home" element={<Navigate replace to="/" />} />
+            <Route path="*" element={<Navigate replace to="/" />} />
+          </Routes>
         </main>
       </div>
 
