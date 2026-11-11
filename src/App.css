@@ -346,54 +346,11 @@
 }
 
 .art-person {
-  height: 190px;
+  height: 230px;
   position: absolute;
-  right: 45px;
-  top: 0;
-  width: 120px;
-}
-
-.art-head {
-  background: #d08b67;
-  border-radius: 50%;
-  height: 51px;
-  left: 42px;
-  position: absolute;
-  top: 0;
-  width: 51px;
-  z-index: 2;
-}
-
-.art-body {
-  background: #1d5e4d;
-  border-radius: 17px 17px 4px 4px;
-  height: 142px;
-  left: 36px;
-  position: absolute;
-  top: 43px;
-  transform: rotate(-6deg);
-  width: 73px;
-}
-
-.art-arm {
-  background: #1d5e4d;
-  border-radius: 10px;
-  height: 79px;
-  position: absolute;
-  top: 52px;
-  transform-origin: top center;
-  width: 14px;
-  z-index: 1;
-}
-
-.art-arm-left {
-  left: 37px;
-  transform: rotate(43deg);
-}
-
-.art-arm-right {
-  right: -1px;
-  transform: rotate(-48deg);
+  right: 24px;
+  top: -4px;
+  width: 180px;
 }
 
 .section-heading,

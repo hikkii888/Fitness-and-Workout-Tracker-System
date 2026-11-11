@@ -107,7 +107,24 @@ function HomeDashboard({
         <div className="welcome-art" aria-hidden="true">
           <div className="art-orbit art-orbit-outer" />
           <div className="art-orbit art-orbit-inner" />
-          <div className="art-person"><span className="art-head" /><span className="art-body" /><span className="art-arm art-arm-left" /><span className="art-arm art-arm-right" /></div>
+          <svg className="art-person" viewBox="0 0 180 230" role="presentation">
+            <ellipse cx="90" cy="218" fill="#39705a" opacity=".12" rx="47" ry="6" />
+            <g fill="none" stroke="#c98260" strokeLinecap="round" strokeLinejoin="round" strokeWidth="12">
+              <path d="M70 78C61 72 56 60 50 50L39 40" />
+              <path d="M110 78C119 72 124 60 130 50L141 40" />
+              <path d="M86 60v12" />
+              <path d="M74 154l-5 53M106 154l7 53" strokeWidth="17" />
+            </g>
+            <path d="M35 42l4-7 7 3M145 42l-4-7-7 3" fill="none" stroke="#c98260" strokeLinecap="round" strokeLinejoin="round" strokeWidth="5" />
+            <path d="M66 78c0-7 10-12 24-12s24 5 24 12l6 57c-17 10-43 10-60 0z" fill="#24735a" />
+            <path d="M67 133c14 7 32 7 46 0l-2 23c-12 6-30 6-42 0z" fill="#194b40" />
+            <path d="M58 211c4-5 13-6 18-1l4 4H57zM105 210c5-4 14-2 18 2l2 2h-19z" fill="#193d35" />
+            <circle cx="90" cy="43" r="18" fill="#d99a76" />
+            <path d="M72 42c0-15 8-24 20-24 10 0 17 7 18 19-6-2-10-6-13-10-5 7-14 11-25 12z" fill="#263e35" />
+            <path d="M83 47h.5M97 47h.5" stroke="#50352c" strokeLinecap="round" strokeWidth="2.5" />
+            <path d="M86 55c3 2 6 2 9 0" fill="none" stroke="#a85f4b" strokeLinecap="round" strokeWidth="2" />
+            <path d="M76 88c7 5 21 5 28 0" fill="none" stroke="#74a98a" strokeLinecap="round" strokeWidth="3" />
+          </svg>
         </div>
       </section>
 
