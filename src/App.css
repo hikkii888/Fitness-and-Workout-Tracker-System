@@ -805,15 +805,17 @@
 
 .profile-signout-button {
   appearance: none;
-  background: none;
-  border: none;
-  color: #233d35;
+  background: #b64f3e;
+  border: 1px solid #b64f3e;
+  border-radius: 8px;
+  color: white;
   cursor: pointer;
   font: inherit;
-  font-size: 13px;
+  font-size: 10px;
   font-weight: 700;
   flex: 0 0 auto;
-  padding: 8px 0 8px 8px;
+  min-height: 38px;
+  padding: 0 12px;
 }
 
 .profile-signout-button:focus-visible {
