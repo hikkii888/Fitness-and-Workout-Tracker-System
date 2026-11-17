@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { apiRequest } from '../api';
-import Icon from './Icon';
 
 function initials(name) {
   return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'U';
@@ -198,8 +197,8 @@ export default function ProfilePage({ user, onUserUpdated, onLogout }) {
       <section className="profile-card profile-signout">
         <div><h2>Sign out</h2><p>Sign out of your account on this device.</p></div>
         {logoutError && <p className="profile-form-message error" role="alert">{logoutError}</p>}
-        <button className="danger-button" disabled={signingOut} onClick={signOut} type="button">
-          <Icon name="logout" /> {signingOut ? 'Signing out…' : 'Sign out'}
+        <button className="profile-signout-button" disabled={signingOut} onClick={signOut} type="button">
+          {signingOut ? 'Signing out…' : 'Sign out'}
         </button>
       </section>
     </div>

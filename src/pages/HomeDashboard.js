@@ -11,6 +11,7 @@ function localDateKey(date) {
 
 function HomeDashboard({
   fitnessProfile,
+  userName,
   workoutPlan,
   onContinue,
   onOpenPlan = onContinue,
@@ -88,7 +89,7 @@ function HomeDashboard({
       <section className="welcome-card">
         <div className="welcome-copy">
           <span className="streak-pill"><Icon name="flame" /> {currentStreak} day streak</span>
-          <h2>Good morning, Jamie.</h2>
+          <h2>Good morning, {userName}.</h2>
           <p>{noSessionsRemainingThisWeek
             ? 'There are no more scheduled sessions this week. Your plan will be ready again next week.'
             : profile ? `Your ${profile.goal.toLowerCase()} plan is ready. Keep building a consistent routine.` : 'You’re building a stronger routine. Let’s keep the momentum going.'}</p>

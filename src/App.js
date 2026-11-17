@@ -706,6 +706,7 @@ function App() {
               element={(
                 <HomeDashboard
                   fitnessProfile={fitnessProfile}
+                  userName={currentUser.name}
                   workoutPlan={workoutPlan}
                   onContinue={beginWorkout}
                   onOpenPlan={() => navigateToScreen('plan')}
@@ -797,7 +798,7 @@ function App() {
                 />
               )}
             />
-            <Route path="/feedback" element={<WorkoutFeedback onSaved={saveWorkoutFeedback} />} />
+            <Route path="/feedback" element={<WorkoutFeedback onSaved={saveWorkoutFeedback} userName={currentUser.name} />} />
             <Route path="/home" element={<Navigate replace to="/" />} />
             <Route path="*" element={<Navigate replace to="/" />} />
           </Routes>

@@ -8,7 +8,7 @@ const difficultyOptions = [
   { value: 'unfinished', number: '04', title: 'Couldn’t finish', description: 'I had to stop early' },
 ];
 
-function WorkoutFeedback({ onSaved }) {
+function WorkoutFeedback({ userName, onSaved }) {
   const [difficulty, setDifficulty] = useState('just-right');
   const [feltPain, setFeltPain] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -29,7 +29,7 @@ function WorkoutFeedback({ onSaved }) {
       <form className="feedback-card" onSubmit={handleSubmit}>
         <span className="feedback-success-icon"><Icon name="check" /></span>
         <p className="eyebrow">WORKOUT COMPLETE</p>
-        <h2>Great work, Jamie!</h2>
+        <h2>Great work, {userName}!</h2>
         <p className="feedback-prompt">How did today’s workout feel?</p>
 
         <div className="difficulty-options" role="group" aria-label="How difficult was your workout?">
