@@ -216,6 +216,12 @@
   width: 34px;
 }
 
+.avatar-button {
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+}
+
 .profile-copy {
   display: flex;
   flex-direction: column;
@@ -2275,6 +2281,7 @@
 .goal-progress-link:focus-visible,
 .record-action:focus-visible,
 .record-view:focus-visible,
+.avatar-button:focus-visible,
 .dialog-close:focus-visible,
 .secondary-button:focus-visible,
 .danger-button:focus-visible {
