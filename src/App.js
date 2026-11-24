@@ -707,6 +707,7 @@ function App() {
                 <HomeDashboard
                   fitnessProfile={fitnessProfile}
                   userName={currentUser.name}
+                  avatarDataUrl={currentUser.avatarDataUrl}
                   workoutPlan={workoutPlan}
                   onContinue={beginWorkout}
                   onOpenPlan={() => navigateToScreen('plan')}
