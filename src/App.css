@@ -353,6 +353,18 @@
   width: 180px;
 }
 
+.welcome-profile-photo {
+  border: 5px solid rgba(255, 255, 255, .75);
+  border-radius: 50%;
+  height: 150px;
+  object-fit: cover;
+  position: absolute;
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 150px;
+}
+
 .section-heading,
 .panel-heading {
   align-items: center;
@@ -1313,10 +1325,14 @@
     bottom: 0;
     flex-basis: 110px;
     margin: 0 -18px -23px 0;
-    opacity: .7;
     position: absolute;
     right: 0;
     top: 0;
+  }
+
+  .art-orbit,
+  .art-person {
+    opacity: .7;
   }
 
   .art-orbit {
@@ -1331,6 +1347,12 @@
     right: -60px;
     transform: scale(.8);
     transform-origin: top center;
+  }
+
+  .welcome-profile-photo {
+    height: 110px;
+    right: 0;
+    width: 110px;
   }
 
   .welcome-copy {
