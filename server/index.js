@@ -50,11 +50,20 @@ function hashPassword(password, salt) {
   return scryptSync(password, salt, 64).toString('hex');
 }
 
+function isAdminEmail(email) {
+  const adminEmails = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((adminEmail) => adminEmail.trim().toLowerCase())
+    .filter(Boolean);
+  return adminEmails.includes(email.toLowerCase());
+}
+
 function publicUser(user) {
   return {
     id: user.id,
     name: user.name,
     email: user.email,
+    isAdmin: isAdminEmail(user.email),
     createdAt: user.created_at,
     age: user.age,
     gender: user.gender,
@@ -127,6 +136,15 @@ function requireAuth(request, response, next) {
   if (!user) return response.status(401).json({ error: 'Please sign in to continue.' });
   request.user = user;
   return next();
+}
+
+function requireAdmin(request, response, next) {
+  return requireAuth(request, response, () => {
+    if (!isAdminEmail(request.user.email)) {
+      return response.status(403).json({ error: 'Admin access is required.' });
+    }
+    return next();
+  });
 }
 
 function isValidPlanExercise(exercise, roles) {
@@ -243,6 +261,17 @@ async function proxyExerciseApi(request, response, resourcePath) {
 
 app.get('/api/health', (_request, response) => {
   response.json({ status: 'ok', database: 'connected' });
+});
+
+app.get('/api/admin/overview', requireAdmin, (_request, response) => {
+  const totals = database.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM users) AS users,
+      (SELECT COUNT(*) FROM workout_sessions) AS workouts,
+      (SELECT COUNT(*) FROM exercises) AS exercises,
+      (SELECT COUNT(*) FROM workout_sessions WHERE date >= date('now', '-6 days')) AS workoutsLast7Days
+  `).get();
+  response.json(totals);
 });
 
 function startSession(response, userId) {

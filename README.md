@@ -22,6 +22,14 @@ The SQLite file is created automatically at `data/fitness.sqlite` and is ignored
 DATABASE_PATH=/path/to/fitness.sqlite npm run api
 ```
 
+To grant administrator access, set the server-side `ADMIN_EMAILS` environment variable to a comma-separated list of existing account email addresses, then restart the API. For example:
+
+```sh
+ADMIN_EMAILS=admin@example.com npm run dev
+```
+
+Only those signed-in accounts can open the Admin page or request the protected admin overview API.
+
 ## ExerciseAPI.dev integration
 
 The Exercise Library includes an optional ExerciseAPI.dev catalog. The API key is read only by the Express server and is not included in browser code.
@@ -73,6 +81,7 @@ All endpoints are under `/api`. Successful list requests return JSON arrays; val
 | `POST` | `/api/auth/register` | Create an account and sign in |
 | `POST` | `/api/auth/login` | Sign in to an existing account |
 | `GET` | `/api/auth/me` | Read the signed-in account |
+| `GET` | `/api/admin/overview` | Read platform totals (requires an email in `ADMIN_EMAILS`) |
 | `PATCH` | `/api/auth/profile` | Update name, email, avatar, age, gender, phone, and address |
 | `PATCH` | `/api/auth/password` | Change the signed-in account password |
 | `POST` | `/api/auth/logout` | Sign out and clear the session |
