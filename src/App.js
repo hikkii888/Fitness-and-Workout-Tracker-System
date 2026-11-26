@@ -709,7 +709,6 @@ function App() {
 
         <main className="page-content">
           {apiError && <p className="api-error app-api-error" role="alert">{apiError}</p>}
-<<<<<<< HEAD
           <Routes>
             <Route
               path="/"
