@@ -687,14 +687,19 @@ function App() {
             <button className="icon-button" type="button" aria-label="Notifications">
               <Icon name="bell" />
             </button>
-            <div className="profile">
+            <button
+              aria-label="Open my profile"
+              className="profile"
+              onClick={() => navigateToScreen('profile')}
+              type="button"
+            >
               <span className="avatar">
                 {currentUser.avatarDataUrl
                   ? <img src={currentUser.avatarDataUrl} alt="" />
                   : currentUser.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')}
               </span>
               <span className="profile-copy"><strong>{currentUser.name}</strong><small>{currentUser.email}</small></span>
-            </div>
+            </button>
           </div>
         </header>
 
