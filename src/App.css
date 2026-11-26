@@ -216,11 +216,17 @@
   width: 17px;
 }
 
-.profile {
+button.profile {
   align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
   display: flex;
   gap: 10px;
   margin-left: 5px;
+  padding: 0;
+  text-align: left;
 }
 
 .avatar {
