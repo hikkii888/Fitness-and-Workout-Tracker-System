@@ -8,6 +8,15 @@
   -moz-osx-font-smoothing: grayscale;
 
   font-optical-sizing: auto;
+
+  --type-body: clamp(15px, 1vw, 17px);
+  --type-control: clamp(15px, .95vw, 16px);
+  --type-nav: clamp(15px, 1vw, 16px);
+  --type-secondary: clamp(13px, .9vw, 14px);
+  --type-card-heading: clamp(18px, 1.35vw, 20px);
+  --type-section-heading: clamp(22px, 1.65vw, 24px);
+  --type-page-title: clamp(28px, 2.1vw, 32px);
+  --type-hero-title: clamp(28px, 2vw, 32px);
 }
 
 * {
@@ -23,4 +32,72 @@ body {
 button,
 select {
   font: inherit;
+}
+
+#root :where(*) {
+  font-size: var(--type-body);
+}
+
+#root :where(h1) {
+  font-size: var(--type-page-title);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+#root :where(h2) {
+  font-size: var(--type-section-heading);
+}
+
+#root :where(h3, h4, h5, h6) {
+  font-size: var(--type-card-heading);
+}
+
+#root :where(.topbar h1, .account-card h1) {
+  font-size: var(--type-page-title);
+}
+
+#root :where(.welcome-card h2, .goal-card h2, .screen-intro h2, .plan-hero h2, .achievement-hero h2, .workout-complete-screen h2) {
+  font-size: var(--type-hero-title);
+}
+
+#root :where(small, .eyebrow, [class*="caption"], [class*="metadata"], [class*="hint"], [class*="status"], .exercise-step, .exercise-tags, .streak-pill, .schedule-day-name, .schedule-today-label, .up-next-label, .api-exercise-media-badge) {
+  font-size: var(--type-secondary);
+}
+
+#root :where(button, input, select, textarea, label, .side-nav-item) {
+  font-size: var(--type-control);
+}
+
+#root :where(.side-nav-item) {
+  font-size: var(--type-nav);
+}
+
+#root :where(.help-card-heading strong) {
+  font-size: 18px;
+}
+
+#root :where(.brand > span:not(.brand-mark), .brand-period) {
+  font-size: 22px;
+}
+
+#root :where(.metric-number, .analytics-stat strong, .progress-metric-card strong, .plan-overall-progress strong, .level-badge strong) {
+  font-size: clamp(20px, 1.65vw, 26px);
+}
+
+#root :where(.progress-period-summary strong, .comparison-value strong, .scheduled-date-badge strong) {
+  font-size: clamp(17px, 1.3vw, 20px);
+}
+
+#root :where(.goal-ring > span, .difficulty-number) {
+  font-size: 20px;
+}
+
+#root :where(.week-nav-button) {
+  font-size: 27px;
+}
+
+@media (max-width: 720px) {
+  #root :where(.topbar h1) {
+    font-size: 28px;
+  }
 }
