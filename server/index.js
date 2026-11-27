@@ -747,6 +747,10 @@ app.use('/api', (_request, response) => {
 });
 
 if (existsSync(resolve(rootDirectory, 'dist'))) {
+  const adminBuildDirectory = resolve(rootDirectory, 'dist/admin');
+  if (existsSync(adminBuildDirectory)) {
+    app.use('/admin', express.static(adminBuildDirectory));
+  }
   app.use(express.static(resolve(rootDirectory, 'dist')));
   app.get('/{*path}', (request, response, next) => {
     if (request.path.startsWith('/api/')) return next();

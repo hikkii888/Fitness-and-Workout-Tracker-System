@@ -1,0 +1,189 @@
+.admin-screen {
+  gap: 18px;
+}
+
+.admin-welcome {
+  align-items: center;
+  background: #eaf2e9;
+  border: 1px solid #dfe9df;
+  border-radius: 14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 23px;
+}
+
+.admin-welcome h2 {
+  color: #1d3d34;
+  font-size: 21px;
+  letter-spacing: -.4px;
+  margin: 0;
+}
+
+.admin-welcome p:last-child {
+  color: #687a70;
+  font-size: 11px;
+  margin: 8px 0 0;
+}
+
+.admin-badge {
+  align-items: center;
+  background: #15362f;
+  border-radius: 20px;
+  color: #d3ef68;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 800;
+  gap: 7px;
+  letter-spacing: .8px;
+  padding: 8px 11px;
+}
+
+.admin-badge svg {
+  height: 14px;
+  width: 14px;
+}
+
+.admin-info-panel {
+  min-height: 0;
+  padding: 20px;
+}
+
+.admin-info-panel h3 {
+  color: #294239;
+  font-size: 15px;
+  margin: 0;
+}
+
+.admin-info-panel > p:last-child {
+  color: #718078;
+  font-size: 11px;
+  line-height: 1.6;
+  margin: 8px 0 0;
+}
+
+.admin-info-panel code,
+.admin-access-card code {
+  background: #f0f3ef;
+  border-radius: 4px;
+  color: #315b4a;
+  padding: 2px 4px;
+}
+
+.admin-standalone {
+  background: #f7f8f3;
+  min-height: 100vh;
+}
+
+.admin-standalone-header {
+  align-items: center;
+  background: #fff;
+  border-bottom: 1px solid #e4e9e3;
+  display: flex;
+  justify-content: space-between;
+  min-height: 66px;
+  padding: 12px clamp(18px, 4vw, 56px);
+}
+
+.admin-standalone-brand,
+.admin-standalone-account {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.admin-standalone-brand {
+  color: #193a33;
+  font-size: 20px;
+}
+
+.admin-standalone-label {
+  background: #eaf2e9;
+  border-radius: 14px;
+  color: #1b725b;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 6px 9px;
+}
+
+.admin-standalone-account {
+  color: #52665a;
+  font-size: 11px;
+}
+
+.admin-signout {
+  background: transparent;
+  border: 1px solid #dce5dc;
+  border-radius: 8px;
+  color: #315b4a;
+  cursor: pointer;
+  font: inherit;
+  padding: 7px 10px;
+}
+
+.admin-signout:hover {
+  background: #f3f6f1;
+}
+
+.admin-standalone-main {
+  margin: 0 auto;
+  max-width: 1240px;
+  padding: 30px clamp(16px, 4vw, 48px);
+}
+
+.admin-standalone-main > .account-screen {
+  min-height: calc(100vh - 126px);
+}
+
+.admin-loading {
+  text-align: center;
+}
+
+.admin-access-card {
+  background: #fff;
+  border: 1px solid #e4e9e3;
+  border-radius: 14px;
+  margin: 7vh auto;
+  max-width: 460px;
+  padding: 28px;
+}
+
+.admin-access-card h1 {
+  color: #1d3d34;
+  font-size: 21px;
+  margin: 0;
+}
+
+.admin-access-card > p:not(.eyebrow, .api-error) {
+  color: #718078;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.admin-access-card .primary-button {
+  margin-top: 12px;
+}
+
+@media (max-width: 520px) {
+  .admin-welcome {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 18px;
+  }
+
+  .admin-standalone-header {
+    gap: 12px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .admin-standalone-account {
+    gap: 6px;
+  }
+
+  .admin-standalone-account > span {
+    display: none;
+  }
+}

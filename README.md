@@ -22,13 +22,23 @@ The SQLite file is created automatically at `data/fitness.sqlite` and is ignored
 DATABASE_PATH=/path/to/fitness.sqlite npm run api
 ```
 
-To grant administrator access, set the server-side `ADMIN_EMAILS` environment variable to a comma-separated list of existing account email addresses, then restart the API. For example:
+The administrator portal is a separate website from the workout tracker. To grant administrator access, set the server-side `ADMIN_EMAILS` environment variable to a comma-separated list of existing account email addresses. For example:
 
 ```sh
-ADMIN_EMAILS=admin@example.com npm run dev
+ADMIN_EMAILS=admin@example.com npm run dev:admin
 ```
 
-Only those signed-in accounts can open the Admin page or request the protected admin overview API.
+This starts the API and standalone admin website at `http://localhost:5174`. Only configured accounts can access the portal or protected admin overview API.
+
+To serve both websites from a production API, build both frontends before starting the server:
+
+```sh
+npm run build
+npm run build:admin
+npm start
+```
+
+The workout tracker is served at `/`, and the standalone administrator portal is served at `/admin/`.
 
 ## ExerciseAPI.dev integration
 

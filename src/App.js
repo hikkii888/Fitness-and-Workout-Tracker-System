@@ -3,7 +3,6 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-r
 import { apiRequest, toExerciseNames } from './api';
 import { fetchWorkoutExerciseCandidates } from './exerciseApiService';
 import ActiveWorkout from './pages/ActiveWorkout';
-import AdminDashboard from './pages/AdminDashboard';
 import Achievements from './pages/Achievements';
 import AuthScreen from './pages/AuthScreen';
 import FitnessGoalSelection from './pages/FitnessGoalSelection';
@@ -30,7 +29,6 @@ const navigation = [
   { id: 'achievements', label: 'Achievements', icon: 'star' },
   { id: 'history', label: 'Workout History', icon: 'history' },
   { id: 'profile', label: 'Profile', icon: 'user' },
-  { id: 'admin', label: 'Admin', icon: 'chart' },
 ];
 
 const screenPaths = {
@@ -45,7 +43,6 @@ const screenPaths = {
   achievements: '/achievements',
   history: '/history',
   profile: '/profile',
-  admin: '/admin',
 };
 
 const screensByPath = Object.fromEntries(
@@ -636,8 +633,8 @@ function App() {
         </Link>
 
         <nav className="side-nav" aria-label="Main navigation">
-          {navigation.filter((item) => item.id !== 'admin' || currentUser.isAdmin).map((item) => {
-            const isAvailable = ['home', 'goals', 'plan', 'library', 'workout', 'feedback', 'progress', 'schedule', 'achievements', 'history', 'profile', 'admin'].includes(item.id);
+          {navigation.map((item) => {
+            const isAvailable = ['home', 'goals', 'plan', 'library', 'workout', 'feedback', 'progress', 'schedule', 'achievements', 'history', 'profile'].includes(item.id);
             return (
               <button
                 className={`side-nav-item ${currentScreen === item.id ? 'is-active' : ''}`}
@@ -681,7 +678,6 @@ function App() {
               achievements: 'Achievements',
               history: 'Workout History',
               profile: 'My Profile',
-              admin: 'Admin Overview',
             })[currentScreen] || 'Home Dashboard'}</h1>
           </div>
           <div className="topbar-actions">
@@ -809,10 +805,6 @@ function App() {
               )}
             />
             <Route path="/feedback" element={<WorkoutFeedback onSaved={saveWorkoutFeedback} userName={currentUser.name} />} />
-            <Route
-              path="/admin"
-              element={currentUser.isAdmin ? <AdminDashboard /> : <Navigate replace to="/" />}
-            />
             <Route path="/home" element={<Navigate replace to="/" />} />
             <Route path="*" element={<Navigate replace to="/" />} />
           </Routes>
