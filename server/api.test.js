@@ -80,6 +80,7 @@ before(async () => {
       ...process.env,
       DATABASE_PATH: databasePath,
       EXERCISEAPI_KEY: '',
+      ADMIN_EMAILS: ' API-TEST@example.com ',
       PORT: String(port),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -106,6 +107,38 @@ after(async () => {
     await once(apiProcess, 'exit');
   }
   if (temporaryDirectory) await rm(temporaryDirectory, { recursive: true, force: true });
+});
+
+test('admin overview is restricted to configured email addresses', async () => {
+  const anonymousResponse = await globalThis.fetch(`${apiUrl}/admin/overview`);
+  assert.equal(anonymousResponse.status, 401);
+
+  const adminUser = await (await fetch(`${apiUrl}/auth/me`)).json();
+  assert.equal(adminUser.user.isAdmin, true);
+
+  const adminResponse = await fetch(`${apiUrl}/admin/overview`);
+  assert.equal(adminResponse.status, 200);
+  const overview = await adminResponse.json();
+  assert.equal(overview.users, 1);
+  assert.equal(overview.workouts, 0);
+  assert.equal(overview.exercises, 15);
+  assert.equal(overview.workoutsLast7Days, 0);
+
+  const regularAccount = await globalThis.fetch(`${apiUrl}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Regular User',
+      email: 'regular-user@example.com',
+      password: 'strong-test-password',
+    }),
+  });
+  const regularCookie = regularAccount.headers.get('set-cookie').split(';')[0];
+  assert.equal((await regularAccount.json()).user.isAdmin, false);
+  const forbiddenResponse = await globalThis.fetch(`${apiUrl}/admin/overview`, {
+    headers: { Cookie: regularCookie },
+  });
+  assert.equal(forbiddenResponse.status, 403);
 });
 
 test('exercise, plan, workout, and progress API workflows persist correctly', async (context) => {

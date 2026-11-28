@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n API,WEB \"node --env-file-if-exists=.env --watch server/index.js\" \"vite\"",
+    "dev:admin": "concurrently -k -n API,ADMIN \"node --env-file-if-exists=.env --watch server/index.js\" \"vite --config vite.admin.config.js\"",
     "api": "node --env-file-if-exists=.env server/index.js",
     "start": "node --env-file-if-exists=.env server/index.js",
     "build": "vite build",
+    "build:admin": "vite build --config vite.admin.config.js",
     "lint": "oxlint",
     "test": "node --test",
     "preview": "vite preview"
